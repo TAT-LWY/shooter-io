@@ -74,6 +74,19 @@ canvas { display: block; cursor: crosshair; }
 .lb-row { display: flex; justify-content: space-between; padding: 2px 0; }
 .lb-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+#pingDisplay {
+  position: fixed;
+  top: 12px; left: 12px;
+  background: rgba(0,0,0,0.6);
+  color: #0f0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: monospace;
+  z-index: 5;
+}
+#pingDisplay.hidden { display: none; }
+
 #death {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -109,6 +122,8 @@ canvas { display: block; cursor: crosshair; }
   <div id="leaderboard"></div>
 </div>
 
+<div id="pingDisplay" class="hidden">PING: --</div>
+
 <div id="death" class="hidden">
   <div>
     <h2>你死了</h2>
@@ -130,16 +145,34 @@ const deathScreen = document.getElementById('death');
 const leaderboardEl = document.getElementById('leaderboard');
 const nameInput = document.getElementById('nameInput');
 const playBtn = document.getElementById('playBtn');
+const pingDisplay = document.getElementById('pingDisplay');
 
 let socket;
 let myId;
 let mapW, mapH;
-let state = { players: {}, bullets: [] };
+let PLAYER_SPEED = 4;
+let PLAYER_RADIUS = 18;
 let camera = { x: 0, y: 0 };
 let mouse = { x: 0, y: 0 };
 let keys = { up: false, down: false, left: false, right: false };
 let playing = false;
 let wasAlive = true;
+
+// Client-side prediction
+let inputSeq = 0;
+let pendingInputs = [];
+let localPlayer = null;
+
+// Entity interpolation
+let stateBuffer = [];
+const INTERP_DELAY = 100; // ms behind server to interpolate
+
+// Ping tracking
+let ping = 0;
+
+// Server state (latest)
+let serverPlayers = {};
+let serverBullets = [];
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -152,24 +185,88 @@ function startGame() {
   const name = nameInput.value.trim() || 'Player';
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
+  pingDisplay.classList.remove('hidden');
   playing = true;
 
   socket = io();
+
   socket.on('init', (data) => {
     myId = data.id;
     mapW = data.mapW;
     mapH = data.mapH;
+    PLAYER_SPEED = data.playerSpeed;
+    PLAYER_RADIUS = data.playerRadius;
     socket.emit('setName', name);
   });
+
   socket.on('state', (s) => {
-    state = s;
-    const me = state.players[myId];
+    const now = Date.now();
+    stateBuffer.push({ time: now, players: s.players, bullets: s.bullets });
+    // Keep only 1 second of buffer
+    while (stateBuffer.length > 2 && stateBuffer[0].time < now - 1000) {
+      stateBuffer.shift();
+    }
+
+    serverPlayers = s.players;
+    serverBullets = s.bullets;
+
+    const me = s.players[myId];
     if (me) {
-      if (!me.alive && wasAlive) deathScreen.classList.remove('hidden');
-      if (me.alive && !wasAlive) deathScreen.classList.add('hidden');
+      if (!me.alive && wasAlive) {
+        deathScreen.classList.remove('hidden');
+        localPlayer = null;
+      }
+      if (me.alive && !wasAlive) {
+        deathScreen.classList.add('hidden');
+        localPlayer = { x: me.x, y: me.y };
+        pendingInputs = [];
+      }
       wasAlive = me.alive;
+
+      // Server reconciliation
+      if (me.alive && localPlayer) {
+        // Snap to server position
+        localPlayer.x = me.x;
+        localPlayer.y = me.y;
+        // Re-apply unacknowledged inputs
+        const serverSeq = me.seq || 0;
+        pendingInputs = pendingInputs.filter(inp => inp.seq > serverSeq);
+        for (const inp of pendingInputs) {
+          applyMovement(localPlayer, inp.keys);
+        }
+      } else if (me.alive && !localPlayer) {
+        localPlayer = { x: me.x, y: me.y };
+        pendingInputs = [];
+      }
     }
   });
+
+  socket.on('pong_check', (clientTime) => {
+    ping = Date.now() - clientTime;
+    const color = ping < 80 ? '#0f0' : ping < 150 ? '#ff0' : '#f00';
+    pingDisplay.style.color = color;
+    pingDisplay.textContent = `PING: ${ping}ms`;
+  });
+
+  // Ping check every 2 seconds
+  setInterval(() => {
+    if (socket) socket.emit('ping_check', Date.now());
+  }, 2000);
+}
+
+function applyMovement(obj, inputKeys) {
+  let dx = 0, dy = 0;
+  if (inputKeys.up) dy -= 1;
+  if (inputKeys.down) dy += 1;
+  if (inputKeys.left) dx -= 1;
+  if (inputKeys.right) dx += 1;
+  if (dx || dy) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    obj.x += (dx / len) * PLAYER_SPEED;
+    obj.y += (dy / len) * PLAYER_SPEED;
+  }
+  obj.x = Math.max(PLAYER_RADIUS, Math.min(mapW - PLAYER_RADIUS, obj.x));
+  obj.y = Math.max(PLAYER_RADIUS, Math.min(mapH - PLAYER_RADIUS, obj.y));
 }
 
 playBtn.addEventListener('click', startGame);
@@ -194,10 +291,6 @@ window.addEventListener('mousemove', (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
-window.addEventListener('mousedown', (e) => {
-  if (!playing || !socket) return;
-  if (e.button === 0) socket.emit('shoot');
-});
 
 let shooting = false;
 window.addEventListener('mousedown', (e) => { if (e.button === 0) shooting = true; });
@@ -205,15 +298,82 @@ window.addEventListener('mouseup', (e) => { if (e.button === 0) shooting = false
 
 function sendInput() {
   if (!socket || !playing) return;
-  const me = state.players[myId];
-  if (!me) return;
+  const me = serverPlayers[myId];
+  if (!me || !me.alive) return;
+
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
   const angle = Math.atan2(mouse.y - cy, mouse.x - cx);
-  socket.emit('input', { keys, angle });
+
+  inputSeq++;
+  const input = { keys: { ...keys }, angle, seq: inputSeq };
+  socket.emit('input', input);
+
+  // Client-side prediction: apply immediately
+  if (localPlayer) {
+    applyMovement(localPlayer, keys);
+    pendingInputs.push({ seq: inputSeq, keys: { ...keys } });
+    // Limit buffer size
+    if (pendingInputs.length > 120) pendingInputs.shift();
+  }
+
   if (shooting) socket.emit('shoot');
 }
 setInterval(sendInput, 1000 / 30);
+
+// Interpolate other players between two server states
+function getInterpolatedPlayers() {
+  const now = Date.now();
+  const renderTime = now - INTERP_DELAY;
+  const result = {};
+
+  if (stateBuffer.length < 2) {
+    // Not enough data, use latest
+    for (const id in serverPlayers) {
+      result[id] = { ...serverPlayers[id] };
+    }
+    return result;
+  }
+
+  // Find the two states to interpolate between
+  let prev = stateBuffer[0];
+  let next = stateBuffer[1];
+  for (let i = 0; i < stateBuffer.length - 1; i++) {
+    if (stateBuffer[i].time <= renderTime && stateBuffer[i + 1].time >= renderTime) {
+      prev = stateBuffer[i];
+      next = stateBuffer[i + 1];
+      break;
+    }
+  }
+  // If renderTime is past all buffered states, use the latest two
+  if (renderTime > stateBuffer[stateBuffer.length - 1].time) {
+    prev = stateBuffer[stateBuffer.length - 2] || stateBuffer[stateBuffer.length - 1];
+    next = stateBuffer[stateBuffer.length - 1];
+  }
+
+  const total = next.time - prev.time;
+  const t = total > 0 ? Math.max(0, Math.min(1, (renderTime - prev.time) / total)) : 1;
+
+  // Interpolate each player
+  const allIds = new Set([...Object.keys(prev.players), ...Object.keys(next.players)]);
+  for (const id of allIds) {
+    const p0 = prev.players[id];
+    const p1 = next.players[id];
+    if (p0 && p1) {
+      result[id] = {
+        ...p1,
+        x: p0.x + (p1.x - p0.x) * t,
+        y: p0.y + (p1.y - p0.y) * t,
+        angle: p0.angle + (p1.angle - p0.angle) * t
+      };
+    } else if (p1) {
+      result[id] = { ...p1 };
+    } else if (p0) {
+      result[id] = { ...p0 };
+    }
+  }
+  return result;
+}
 
 function drawGrid() {
   ctx.strokeStyle = '#1a1a1a';
@@ -294,7 +454,7 @@ function drawBullet(b) {
 }
 
 function updateLeaderboard() {
-  const sorted = Object.values(state.players)
+  const sorted = Object.values(serverPlayers)
     .sort((a, b) => b.kills - a.kills)
     .slice(0, 8);
   leaderboardEl.innerHTML = sorted.map(p =>
@@ -306,21 +466,41 @@ function render() {
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const me = state.players[myId];
-  if (me) {
-    camera.x = me.x - canvas.width / 2;
-    camera.y = me.y - canvas.height / 2;
+  // Use local predicted position for camera
+  const me = serverPlayers[myId];
+  const renderPos = localPlayer || (me ? { x: me.x, y: me.y } : null);
+  if (renderPos) {
+    camera.x = renderPos.x - canvas.width / 2;
+    camera.y = renderPos.y - canvas.height / 2;
   }
 
   drawGrid();
   drawBorder();
 
-  for (const b of state.bullets) drawBullet(b);
+  for (const b of serverBullets) drawBullet(b);
 
-  for (const id in state.players) {
-    if (id !== myId) drawPlayer(state.players[id], false);
+  // Get interpolated positions for other players
+  const interpolated = getInterpolatedPlayers();
+
+  for (const id in interpolated) {
+    if (id === myId) continue;
+    drawPlayer(interpolated[id], false);
   }
-  if (me) drawPlayer(me, true);
+
+  // Draw self using predicted position
+  if (me && localPlayer) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const angle = Math.atan2(mouse.y - cy, mouse.x - cx);
+    drawPlayer({
+      ...me,
+      x: localPlayer.x,
+      y: localPlayer.y,
+      angle: angle
+    }, true);
+  } else if (me) {
+    drawPlayer(me, true);
+  }
 
   updateLeaderboard();
   requestAnimationFrame(render);

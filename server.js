@@ -4,9 +4,13 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  pingInterval: 2000,
+  pingTimeout: 5000
+});
 
-app.use(express.static('public'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
 const MAP_W = 3000;
 const MAP_H = 3000;
@@ -19,10 +23,12 @@ const BULLET_RADIUS = 5;
 const MAX_HP = 100;
 const BULLET_DAMAGE = 20;
 const RESPAWN_TIME = 3000;
+const SHOOT_COOLDOWN = 150;
 
 const players = {};
 const bullets = [];
 let bulletId = 0;
+let serverTick = 0;
 
 const COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
@@ -46,14 +52,19 @@ io.on('connection', (socket) => {
     color: randomColor(),
     alive: true,
     input: { up: false, down: false, left: false, right: false },
-    lastShot: 0
+    lastShot: 0,
+    seq: 0
   };
   players[socket.id] = player;
 
   socket.emit('init', {
     id: socket.id,
     mapW: MAP_W,
-    mapH: MAP_H
+    mapH: MAP_H,
+    playerSpeed: PLAYER_SPEED,
+    playerRadius: PLAYER_RADIUS,
+    tickRate: TICK_RATE,
+    shootCooldown: SHOOT_COOLDOWN
   });
 
   socket.on('setName', (name) => {
@@ -64,12 +75,13 @@ io.on('connection', (socket) => {
     if (!player.alive) return;
     player.input = data.keys || player.input;
     player.angle = data.angle || 0;
+    player.seq = data.seq || 0;
   });
 
   socket.on('shoot', () => {
     if (!player.alive) return;
     const now = Date.now();
-    if (now - player.lastShot < 150) return;
+    if (now - player.lastShot < SHOOT_COOLDOWN) return;
     player.lastShot = now;
     bullets.push({
       id: bulletId++,
@@ -83,28 +95,37 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('ping_check', (clientTime) => {
+    socket.emit('pong_check', clientTime);
+  });
+
   socket.on('disconnect', () => {
     delete players[socket.id];
   });
 });
 
+function applyInput(p) {
+  if (!p.alive) return;
+  const inp = p.input;
+  let dx = 0, dy = 0;
+  if (inp.up) dy -= 1;
+  if (inp.down) dy += 1;
+  if (inp.left) dx -= 1;
+  if (inp.right) dx += 1;
+  if (dx || dy) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    p.x += (dx / len) * PLAYER_SPEED;
+    p.y += (dy / len) * PLAYER_SPEED;
+  }
+  p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));
+  p.y = Math.max(PLAYER_RADIUS, Math.min(MAP_H - PLAYER_RADIUS, p.y));
+}
+
 function tick() {
+  serverTick++;
+
   for (const id in players) {
-    const p = players[id];
-    if (!p.alive) continue;
-    const inp = p.input;
-    let dx = 0, dy = 0;
-    if (inp.up) dy -= 1;
-    if (inp.down) dy += 1;
-    if (inp.left) dx -= 1;
-    if (inp.right) dx += 1;
-    if (dx || dy) {
-      const len = Math.sqrt(dx * dx + dy * dy);
-      p.x += (dx / len) * PLAYER_SPEED;
-      p.y += (dy / len) * PLAYER_SPEED;
-    }
-    p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));
-    p.y = Math.max(PLAYER_RADIUS, Math.min(MAP_H - PLAYER_RADIUS, p.y));
+    applyInput(players[id]);
   }
 
   for (let i = bullets.length - 1; i >= 0; i--) {
@@ -141,6 +162,7 @@ function tick() {
   }
 
   const state = {
+    tick: serverTick,
     players: {},
     bullets: bullets.map(b => ({ x: b.x, y: b.y, color: b.color }))
   };
@@ -149,7 +171,7 @@ function tick() {
     state.players[id] = {
       x: p.x, y: p.y, angle: p.angle, hp: p.hp,
       name: p.name, color: p.color, alive: p.alive,
-      kills: p.kills, deaths: p.deaths
+      kills: p.kills, deaths: p.deaths, seq: p.seq
     };
   }
   io.emit('state', state);
