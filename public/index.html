@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shooter.IO</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #111;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+canvas { display: block; cursor: crosshair; }
+
+#menu {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.85);
+  z-index: 10;
+}
+#menu.hidden { display: none; }
+#menuBox {
+  text-align: center;
+  color: #fff;
+}
+#menuBox h1 {
+  font-size: 48px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #e74c3c, #f39c12);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+#menuBox p { color: #888; margin-bottom: 24px; }
+#nameInput {
+  padding: 12px 20px;
+  font-size: 18px;
+  border: 2px solid #444;
+  border-radius: 8px;
+  background: #222;
+  color: #fff;
+  outline: none;
+  width: 240px;
+  text-align: center;
+}
+#nameInput:focus { border-color: #e74c3c; }
+#playBtn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 12px 48px;
+  font-size: 18px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: #fff;
+  cursor: pointer;
+}
+#playBtn:hover { opacity: 0.9; }
+
+#hud {
+  position: fixed;
+  top: 12px; right: 12px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 160px;
+  z-index: 5;
+}
+#hud.hidden { display: none; }
+#hud h3 { margin-bottom: 6px; font-size: 14px; color: #f39c12; }
+.lb-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.lb-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#death {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.7);
+  z-index: 8;
+}
+#death.hidden { display: none; }
+#death div { text-align: center; color: #fff; }
+#death h2 { font-size: 36px; color: #e74c3c; margin-bottom: 8px; }
+#death p { color: #aaa; }
+
+#controls {
+  position: fixed;
+  bottom: 12px; left: 12px;
+  color: #555; font-size: 12px;
+  z-index: 5;
+}
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <div id="menuBox">
+    <h1>SHOOTER.IO</h1>
+    <p>多人在线射击</p>
+    <input id="nameInput" type="text" placeholder="输入你的名字" maxlength="12">
+    <button id="playBtn">开始游戏</button>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <h3>排行榜</h3>
+  <div id="leaderboard"></div>
+</div>
+
+<div id="death" class="hidden">
+  <div>
+    <h2>你死了</h2>
+    <p>等待复活中...</p>
+  </div>
+</div>
+
+<div id="controls">WASD 移动 · 鼠标瞄准 · 左键射击</div>
+
+<canvas id="game"></canvas>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const menu = document.getElementById('menu');
+const hud = document.getElementById('hud');
+const deathScreen = document.getElementById('death');
+const leaderboardEl = document.getElementById('leaderboard');
+const nameInput = document.getElementById('nameInput');
+const playBtn = document.getElementById('playBtn');
+
+let socket;
+let myId;
+let mapW, mapH;
+let state = { players: {}, bullets: [] };
+let camera = { x: 0, y: 0 };
+let mouse = { x: 0, y: 0 };
+let keys = { up: false, down: false, left: false, right: false };
+let playing = false;
+let wasAlive = true;
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function startGame() {
+  const name = nameInput.value.trim() || 'Player';
+  menu.classList.add('hidden');
+  hud.classList.remove('hidden');
+  playing = true;
+
+  socket = io();
+  socket.on('init', (data) => {
+    myId = data.id;
+    mapW = data.mapW;
+    mapH = data.mapH;
+    socket.emit('setName', name);
+  });
+  socket.on('state', (s) => {
+    state = s;
+    const me = state.players[myId];
+    if (me) {
+      if (!me.alive && wasAlive) deathScreen.classList.remove('hidden');
+      if (me.alive && !wasAlive) deathScreen.classList.add('hidden');
+      wasAlive = me.alive;
+    }
+  });
+}
+
+playBtn.addEventListener('click', startGame);
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startGame();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (!playing) return;
+  if (e.key === 'w' || e.key === 'W') keys.up = true;
+  if (e.key === 's' || e.key === 'S') keys.down = true;
+  if (e.key === 'a' || e.key === 'A') keys.left = true;
+  if (e.key === 'd' || e.key === 'D') keys.right = true;
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'w' || e.key === 'W') keys.up = false;
+  if (e.key === 's' || e.key === 'S') keys.down = false;
+  if (e.key === 'a' || e.key === 'A') keys.left = false;
+  if (e.key === 'd' || e.key === 'D') keys.right = false;
+});
+window.addEventListener('mousemove', (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+window.addEventListener('mousedown', (e) => {
+  if (!playing || !socket) return;
+  if (e.button === 0) socket.emit('shoot');
+});
+
+let shooting = false;
+window.addEventListener('mousedown', (e) => { if (e.button === 0) shooting = true; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) shooting = false; });
+
+function sendInput() {
+  if (!socket || !playing) return;
+  const me = state.players[myId];
+  if (!me) return;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const angle = Math.atan2(mouse.y - cy, mouse.x - cx);
+  socket.emit('input', { keys, angle });
+  if (shooting) socket.emit('shoot');
+}
+setInterval(sendInput, 1000 / 30);
+
+function drawGrid() {
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1;
+  const gridSize = 60;
+  const offX = -camera.x % gridSize;
+  const offY = -camera.y % gridSize;
+  for (let x = offX; x < canvas.width; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = offY; y < canvas.height; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+}
+
+function drawBorder() {
+  ctx.strokeStyle = '#e74c3c';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(-camera.x, -camera.y, mapW, mapH);
+}
+
+function drawPlayer(p, isMe) {
+  const sx = p.x - camera.x;
+  const sy = p.y - camera.y;
+  if (sx < -60 || sx > canvas.width + 60 || sy < -60 || sy > canvas.height + 60) return;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // gun
+  ctx.save();
+  ctx.rotate(p.angle);
+  ctx.fillStyle = '#888';
+  ctx.fillRect(10, -4, 20, 8);
+  ctx.restore();
+
+  // body
+  ctx.beginPath();
+  ctx.arc(0, 0, 18, 0, Math.PI * 2);
+  ctx.fillStyle = p.alive ? p.color : '#333';
+  ctx.fill();
+  ctx.strokeStyle = isMe ? '#fff' : 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = isMe ? 3 : 1;
+  ctx.stroke();
+
+  // hp bar
+  if (p.alive) {
+    const barW = 36;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(-barW / 2, -30, barW, 5);
+    ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
+    ctx.fillRect(-barW / 2, -30, barW * (p.hp / 100), 5);
+  }
+
+  // name
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.name, 0, 34);
+
+  ctx.restore();
+}
+
+function drawBullet(b) {
+  const sx = b.x - camera.x;
+  const sy = b.y - camera.y;
+  if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) return;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = b.color;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.globalAlpha = 0.6;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function updateLeaderboard() {
+  const sorted = Object.values(state.players)
+    .sort((a, b) => b.kills - a.kills)
+    .slice(0, 8);
+  leaderboardEl.innerHTML = sorted.map(p =>
+    `<div class="lb-row"><span class="lb-name" style="color:${p.color}">${p.name || 'Player'}</span><span>${p.kills}</span></div>`
+  ).join('');
+}
+
+function render() {
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const me = state.players[myId];
+  if (me) {
+    camera.x = me.x - canvas.width / 2;
+    camera.y = me.y - canvas.height / 2;
+  }
+
+  drawGrid();
+  drawBorder();
+
+  for (const b of state.bullets) drawBullet(b);
+
+  for (const id in state.players) {
+    if (id !== myId) drawPlayer(state.players[id], false);
+  }
+  if (me) drawPlayer(me, true);
+
+  updateLeaderboard();
+  requestAnimationFrame(render);
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
