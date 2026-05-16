@@ -684,23 +684,18 @@ function drawPlayer(p, isMe) {
   const hasSkin = skin && skin.complete && skin.naturalWidth > 0 && p.alive;
 
   if (hasSkin) {
-    // Draw custom skin with circular clip
-    const radius = 26;
+    // Draw custom skin - full character, no clipping
+    const size = 70;
     // Gun still rotates
     ctx.save(); ctx.rotate(p.angle);
-    ctx.fillStyle = '#888'; ctx.fillRect(18, -3, 18, 6);
+    ctx.fillStyle = '#888'; ctx.fillRect(24, -3, 18, 6);
     ctx.restore();
-    // Circular clip for skin image
+    // Draw full character image
     if (!p.alive) ctx.globalAlpha = 0.3;
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.clip();
-    ctx.drawImage(skin, -radius, -radius, radius * 2, radius * 2);
-    ctx.restore();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(skin, -size/2, -size/2, size, size);
     ctx.globalAlpha = 1;
-    // Outline ring
-    ctx.beginPath(); ctx.arc(0, 0, radius + 2, 0, Math.PI * 2);
-    ctx.strokeStyle = isMe ? '#fff' : 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = isMe ? 3 : 1; ctx.stroke();
   } else {
     // Default circle player
     ctx.save(); ctx.rotate(p.angle);
@@ -714,14 +709,15 @@ function drawPlayer(p, isMe) {
 
   // hp bar
   if (p.alive) {
-    const bw = 36;
-    ctx.fillStyle = '#333'; ctx.fillRect(-bw/2, -34, bw, 5);
+    const bw = hasSkin ? 46 : 36;
+    const barY = hasSkin ? -42 : -34;
+    ctx.fillStyle = '#333'; ctx.fillRect(-bw/2, barY, bw, 5);
     ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
-    ctx.fillRect(-bw/2, -34, bw * (p.hp / 100), 5);
+    ctx.fillRect(-bw/2, barY, bw * (p.hp / 100), 5);
   }
   // name
-  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(p.name, 0, hasSkin ? 38 : 34);
+  ctx.fillStyle = '#fff'; ctx.font = hasSkin ? 'bold 13px sans-serif' : '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(p.name, 0, hasSkin ? 46 : 34);
   ctx.restore();
 }
 
