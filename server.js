@@ -40,30 +40,89 @@ let bulletId = 0;
 let serverTick = 0;
 let stateTick = 0;
 
-// Map obstacles - ice blocks (rectangles that block movement and bullets)
+// Map obstacles - ice blocks (circles for irregular shapes)
 const iceBlocks = [
-  // Scattered large ice blocks
-  { x: 400, y: 400, w: 80, h: 80 },
-  { x: 900, y: 300, w: 120, h: 60 },
-  { x: 1500, y: 500, w: 100, h: 100 },
-  { x: 2200, y: 400, w: 70, h: 140 },
-  { x: 2600, y: 800, w: 90, h: 90 },
-  { x: 500, y: 1200, w: 60, h: 120 },
-  { x: 1200, y: 1000, w: 140, h: 70 },
-  { x: 1800, y: 1300, w: 80, h: 80 },
-  { x: 2400, y: 1500, w: 110, h: 60 },
-  { x: 300, y: 2000, w: 90, h: 90 },
-  { x: 800, y: 1800, w: 70, h: 130 },
-  { x: 1500, y: 2200, w: 100, h: 80 },
-  { x: 2100, y: 2000, w: 80, h: 120 },
-  { x: 2500, y: 2400, w: 120, h: 70 },
-  { x: 1000, y: 2500, w: 80, h: 80 },
-  // Center area obstacles
-  { x: 1400, y: 1400, w: 60, h: 60 },
-  { x: 1550, y: 1550, w: 60, h: 60 },
-  { x: 1350, y: 1600, w: 50, h: 100 },
-  { x: 1600, y: 1350, w: 100, h: 50 },
+  { x: 440, y: 440, r: 45 },
+  { x: 950, y: 330, r: 55 },
+  { x: 1550, y: 550, r: 50 },
+  { x: 2240, y: 440, r: 40 },
+  { x: 2640, y: 840, r: 48 },
+  { x: 540, y: 1260, r: 42 },
+  { x: 1270, y: 1040, r: 55 },
+  { x: 1840, y: 1340, r: 44 },
+  { x: 2450, y: 1540, r: 50 },
+  { x: 340, y: 2040, r: 46 },
+  { x: 840, y: 1860, r: 38 },
+  { x: 1550, y: 2240, r: 52 },
+  { x: 2140, y: 2040, r: 43 },
+  { x: 2540, y: 2440, r: 55 },
+  { x: 1040, y: 2540, r: 40 },
+  { x: 1440, y: 1440, r: 35 },
+  { x: 1590, y: 1590, r: 32 },
+  { x: 1380, y: 1640, r: 38 },
+  { x: 1650, y: 1380, r: 36 },
 ];
+
+// Generate irregular polygon vertices for each ice block (for client rendering)
+function generateIrregularShape(cx, cy, r, sides) {
+  const points = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2;
+    const vary = 0.7 + Math.random() * 0.5; // 70%-120% of radius
+    points.push({
+      x: cx + Math.cos(angle) * r * vary,
+      y: cy + Math.sin(angle) * r * vary
+    });
+  }
+  return points;
+}
+
+// Pre-generate shapes (seeded by position for consistency)
+for (const block of iceBlocks) {
+  const sides = 6 + Math.floor((block.x * 7 + block.y * 13) % 4); // 6-9 sides
+  // Use deterministic "random" based on position
+  const pts = [];
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2;
+    const seed = Math.sin(block.x * 12.9898 + block.y * 78.233 + i * 43.1234) * 43758.5453;
+    const vary = 0.7 + (seed - Math.floor(seed)) * 0.5;
+    pts.push({
+      x: Math.cos(angle) * block.r * vary,
+      y: Math.sin(angle) * block.r * vary
+    });
+  }
+  block.shape = pts;
+}
+
+// Generate irregular map border (wavy polygon)
+const MAP_BORDER_POINTS = [];
+const BORDER_SEGMENTS = 60;
+const BORDER_MARGIN = 50;
+for (let i = 0; i < BORDER_SEGMENTS; i++) {
+  const angle = (i / BORDER_SEGMENTS) * Math.PI * 2;
+  const baseR = Math.min(MAP_W, MAP_H) / 2 - BORDER_MARGIN;
+  const seed = Math.sin(i * 45.678 + 12.345) * 43758.5453;
+  const wave = (seed - Math.floor(seed)) * 80 - 40; // ±40 variation
+  const r = baseR + wave;
+  MAP_BORDER_POINTS.push({
+    x: MAP_W / 2 + Math.cos(angle) * r,
+    y: MAP_H / 2 + Math.sin(angle) * r
+  });
+}
+
+function isInsideBorder(x, y) {
+  // Ray casting algorithm
+  let inside = false;
+  const n = MAP_BORDER_POINTS.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = MAP_BORDER_POINTS[i].x, yi = MAP_BORDER_POINTS[i].y;
+    const xj = MAP_BORDER_POINTS[j].x, yj = MAP_BORDER_POINTS[j].y;
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
 
 // Ice lakes (circles where players slide)
 const iceLakes = [
@@ -87,17 +146,16 @@ function isOnIce(x, y) {
 
 function collidesWithBlock(x, y, radius) {
   for (const b of iceBlocks) {
-    const closestX = Math.max(b.x, Math.min(x, b.x + b.w));
-    const closestY = Math.max(b.y, Math.min(y, b.y + b.h));
-    const dx = x - closestX, dy = y - closestY;
-    if (dx * dx + dy * dy < radius * radius) return b;
+    const dx = x - b.x, dy = y - b.y;
+    if (dx * dx + dy * dy < (radius + b.r) * (radius + b.r)) return b;
   }
   return null;
 }
 
 function bulletHitsBlock(x, y) {
   for (const b of iceBlocks) {
-    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return true;
+    const dx = x - b.x, dy = y - b.y;
+    if (dx * dx + dy * dy < b.r * b.r) return true;
   }
   return false;
 }
@@ -169,8 +227,9 @@ io.on('connection', (socket) => {
     bulletDamage: BULLET_DAMAGE,
     shootCooldown: SHOOT_COOLDOWN,
     tickRate: TICK_RATE,
-    iceBlocks,
-    iceLakes
+    iceBlocks: iceBlocks.map(b => ({ x: b.x, y: b.y, r: b.r, shape: b.shape })),
+    iceLakes,
+    borderPoints: MAP_BORDER_POINTS
   });
 
   socket.on('auth', async (token) => {
@@ -290,6 +349,17 @@ function applyInput(p) {
     p.y = newY;
   } else {
     p.vy = 0;
+  }
+
+  // Keep inside irregular border
+  if (!isInsideBorder(p.x, p.y)) {
+    // Push back toward center
+    const cx = MAP_W / 2, cy = MAP_H / 2;
+    const dx = cx - p.x, dy = cy - p.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    p.x += (dx / len) * 5;
+    p.y += (dy / len) * 5;
+    p.vx = 0; p.vy = 0;
   }
 
   p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));

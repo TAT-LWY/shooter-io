@@ -300,6 +300,7 @@ let confirmedBulletMap = {};
 // Map data
 let iceBlocks = [];
 let iceLakes = [];
+let borderPoints = [];
 
 // Snowflake particles
 const snowflakes = [];
@@ -449,6 +450,7 @@ function startGame(playerName) {
     SHOOT_COOLDOWN = data.shootCooldown;
     iceBlocks = data.iceBlocks || [];
     iceLakes = data.iceLakes || [];
+    borderPoints = data.borderPoints || [];
 
     // Authenticate if logged in
     if (authToken) {
@@ -700,13 +702,48 @@ function drawGrid() {
 }
 
 function drawBorder() {
-  // Icy blue border with glow
+  if (borderPoints.length < 3) return;
   ctx.save();
+
+  // Draw the area outside the border as darker
+  // First draw a huge rect, then cut out the border shape
+  ctx.fillStyle = 'rgba(50, 80, 100, 0.4)';
+  ctx.beginPath();
+  ctx.rect(-camera.x - 500, -camera.y - 500, mapW + 1000, mapH + 1000);
+  // Cut out the playable area (reverse winding)
+  ctx.moveTo(borderPoints[0].x - camera.x, borderPoints[0].y - camera.y);
+  for (let i = borderPoints.length - 1; i >= 0; i--) {
+    ctx.lineTo(borderPoints[i].x - camera.x, borderPoints[i].y - camera.y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Draw the border line with smooth curves
+  ctx.beginPath();
+  const bp = borderPoints;
+  ctx.moveTo(bp[0].x - camera.x, bp[0].y - camera.y);
+  for (let i = 0; i < bp.length; i++) {
+    const curr = bp[i];
+    const next = bp[(i + 1) % bp.length];
+    const cpx = (curr.x + next.x) / 2 - camera.x;
+    const cpy = (curr.y + next.y) / 2 - camera.y;
+    ctx.quadraticCurveTo(curr.x - camera.x, curr.y - camera.y, cpx, cpy);
+  }
+  ctx.closePath();
+
+  // Glow
   ctx.shadowColor = '#4fc3f7';
-  ctx.shadowBlur = 15;
+  ctx.shadowBlur = 20;
   ctx.strokeStyle = '#4fc3f7';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(-camera.x, -camera.y, mapW, mapH);
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Inner glow
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(180, 230, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
   ctx.restore();
 }
 
@@ -749,33 +786,73 @@ function drawIceLakes() {
 function drawIceBlocks() {
   for (const block of iceBlocks) {
     const sx = block.x - camera.x, sy = block.y - camera.y;
-    if (sx + block.w < -10 || sx > canvas.width + 10 || sy + block.h < -10 || sy > canvas.height + 10) continue;
+    const r = block.r || 40;
+    if (sx + r < -10 || sx - r > canvas.width + 10 || sy + r < -10 || sy - r > canvas.height + 10) continue;
 
-    // Ice block body
-    const grd = ctx.createLinearGradient(sx, sy, sx + block.w, sy + block.h);
-    grd.addColorStop(0, 'rgba(160, 210, 240, 0.85)');
-    grd.addColorStop(0.5, 'rgba(200, 235, 255, 0.9)');
-    grd.addColorStop(1, 'rgba(140, 195, 230, 0.85)');
-    ctx.fillStyle = grd;
-    ctx.fillRect(sx, sy, block.w, block.h);
+    ctx.save();
+    ctx.translate(sx, sy);
 
-    // Top highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.fillRect(sx + 2, sy + 2, block.w - 4, block.h * 0.3);
+    // Draw irregular shape using pre-generated vertices
+    const shape = block.shape;
+    if (shape && shape.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(shape[0].x, shape[0].y);
+      for (let i = 1; i < shape.length; i++) {
+        const prev = shape[i - 1];
+        const curr = shape[i];
+        const cpx = (prev.x + curr.x) / 2;
+        const cpy = (prev.y + curr.y) / 2;
+        ctx.quadraticCurveTo(prev.x, prev.y, cpx, cpy);
+      }
+      const last = shape[shape.length - 1];
+      const first = shape[0];
+      ctx.quadraticCurveTo(last.x, last.y, (last.x + first.x) / 2, (last.y + first.y) / 2);
+      ctx.closePath();
 
-    // Border
-    ctx.strokeStyle = 'rgba(100, 170, 210, 0.7)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(sx, sy, block.w, block.h);
+      // Ice gradient fill
+      const grd = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 0, 0, 0, r);
+      grd.addColorStop(0, 'rgba(210, 240, 255, 0.95)');
+      grd.addColorStop(0.4, 'rgba(160, 215, 245, 0.9)');
+      grd.addColorStop(0.8, 'rgba(100, 180, 225, 0.85)');
+      grd.addColorStop(1, 'rgba(70, 150, 200, 0.8)');
+      ctx.fillStyle = grd;
+      ctx.fill();
 
-    // Shine spots
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.beginPath();
-    ctx.arc(sx + block.w * 0.25, sy + block.h * 0.25, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(sx + block.w * 0.7, sy + block.h * 0.4, 2, 0, Math.PI * 2);
-    ctx.fill();
+      // Edge outline
+      ctx.strokeStyle = 'rgba(80, 160, 210, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Inner highlight (top-left shine)
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.15, -r * 0.2, r * 0.35, r * 0.2, -0.3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fill();
+
+      // Small sparkle dots
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.beginPath();
+      ctx.arc(-r * 0.25, -r * 0.3, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(r * 0.2, r * 0.1, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner cracks
+      ctx.strokeStyle = 'rgba(80, 160, 220, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.1, -r * 0.1);
+      ctx.lineTo(r * 0.3, r * 0.2);
+      ctx.lineTo(r * 0.1, r * 0.4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, r * 0.2);
+      ctx.lineTo(r * 0.5, 0);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 }
 
