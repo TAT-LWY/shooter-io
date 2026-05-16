@@ -40,6 +40,68 @@ let bulletId = 0;
 let serverTick = 0;
 let stateTick = 0;
 
+// Map obstacles - ice blocks (rectangles that block movement and bullets)
+const iceBlocks = [
+  // Scattered large ice blocks
+  { x: 400, y: 400, w: 80, h: 80 },
+  { x: 900, y: 300, w: 120, h: 60 },
+  { x: 1500, y: 500, w: 100, h: 100 },
+  { x: 2200, y: 400, w: 70, h: 140 },
+  { x: 2600, y: 800, w: 90, h: 90 },
+  { x: 500, y: 1200, w: 60, h: 120 },
+  { x: 1200, y: 1000, w: 140, h: 70 },
+  { x: 1800, y: 1300, w: 80, h: 80 },
+  { x: 2400, y: 1500, w: 110, h: 60 },
+  { x: 300, y: 2000, w: 90, h: 90 },
+  { x: 800, y: 1800, w: 70, h: 130 },
+  { x: 1500, y: 2200, w: 100, h: 80 },
+  { x: 2100, y: 2000, w: 80, h: 120 },
+  { x: 2500, y: 2400, w: 120, h: 70 },
+  { x: 1000, y: 2500, w: 80, h: 80 },
+  // Center area obstacles
+  { x: 1400, y: 1400, w: 60, h: 60 },
+  { x: 1550, y: 1550, w: 60, h: 60 },
+  { x: 1350, y: 1600, w: 50, h: 100 },
+  { x: 1600, y: 1350, w: 100, h: 50 },
+];
+
+// Ice lakes (circles where players slide)
+const iceLakes = [
+  { x: 700, y: 700, r: 150 },
+  { x: 2300, y: 700, r: 120 },
+  { x: 1500, y: 1500, r: 200 },
+  { x: 600, y: 2300, r: 130 },
+  { x: 2400, y: 2200, r: 160 },
+];
+
+const ICE_FRICTION = 0.97; // Slide on ice
+const ICE_SPEED_MULT = 1.5; // Faster on ice
+
+function isOnIce(x, y) {
+  for (const lake of iceLakes) {
+    const dx = x - lake.x, dy = y - lake.y;
+    if (dx * dx + dy * dy < lake.r * lake.r) return true;
+  }
+  return false;
+}
+
+function collidesWithBlock(x, y, radius) {
+  for (const b of iceBlocks) {
+    const closestX = Math.max(b.x, Math.min(x, b.x + b.w));
+    const closestY = Math.max(b.y, Math.min(y, b.y + b.h));
+    const dx = x - closestX, dy = y - closestY;
+    if (dx * dx + dy * dy < radius * radius) return b;
+  }
+  return null;
+}
+
+function bulletHitsBlock(x, y) {
+  for (const b of iceBlocks) {
+    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return true;
+  }
+  return false;
+}
+
 const COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
   '#1abc9c', '#e67e22', '#ec407a', '#26c6da', '#ff7043'
@@ -106,7 +168,9 @@ io.on('connection', (socket) => {
     bulletRadius: BULLET_RADIUS,
     bulletDamage: BULLET_DAMAGE,
     shootCooldown: SHOOT_COOLDOWN,
-    tickRate: TICK_RATE
+    tickRate: TICK_RATE,
+    iceBlocks,
+    iceLakes
   });
 
   socket.on('auth', async (token) => {
@@ -181,11 +245,53 @@ function applyInput(p) {
   if (inp.down) dy += 1;
   if (inp.left) dx -= 1;
   if (inp.right) dx += 1;
+
+  const onIce = isOnIce(p.x, p.y);
+  const speed = onIce ? PLAYER_SPEED * ICE_SPEED_MULT : PLAYER_SPEED;
+
+  if (!p.vx) p.vx = 0;
+  if (!p.vy) p.vy = 0;
+
   if (dx || dy) {
     const len = Math.sqrt(dx * dx + dy * dy);
-    p.x += (dx / len) * PLAYER_SPEED;
-    p.y += (dy / len) * PLAYER_SPEED;
+    if (onIce) {
+      // On ice: add acceleration, momentum carries
+      p.vx += (dx / len) * speed * 0.15;
+      p.vy += (dy / len) * speed * 0.15;
+    } else {
+      // Normal ground: direct movement
+      p.vx = (dx / len) * speed;
+      p.vy = (dy / len) * speed;
+    }
   }
+
+  if (onIce) {
+    p.vx *= ICE_FRICTION;
+    p.vy *= ICE_FRICTION;
+  } else {
+    if (!dx && !dy) { p.vx = 0; p.vy = 0; }
+  }
+
+  // Clamp velocity
+  const maxV = speed * 1.5;
+  const v = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+  if (v > maxV) { p.vx = (p.vx / v) * maxV; p.vy = (p.vy / v) * maxV; }
+
+  const newX = p.x + p.vx;
+  const newY = p.y + p.vy;
+
+  // Check collision with ice blocks
+  if (!collidesWithBlock(newX, p.y, PLAYER_RADIUS)) {
+    p.x = newX;
+  } else {
+    p.vx = 0;
+  }
+  if (!collidesWithBlock(p.x, newY, PLAYER_RADIUS)) {
+    p.y = newY;
+  } else {
+    p.vy = 0;
+  }
+
   p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));
   p.y = Math.max(PLAYER_RADIUS, Math.min(MAP_H - PLAYER_RADIUS, p.y));
 }
@@ -204,7 +310,7 @@ function tick() {
     b.x += b.vx;
     b.y += b.vy;
     b.life--;
-    if (b.life <= 0 || b.x < 0 || b.x > MAP_W || b.y < 0 || b.y > MAP_H) {
+    if (b.life <= 0 || b.x < 0 || b.x > MAP_W || b.y < 0 || b.y > MAP_H || bulletHitsBlock(b.x, b.y)) {
       bullets.splice(i, 1);
       continue;
     }

@@ -297,6 +297,24 @@ let lastLocalShot = 0;
 let serverBullets = [];
 let confirmedBulletMap = {};
 
+// Map data
+let iceBlocks = [];
+let iceLakes = [];
+
+// Snowflake particles
+const snowflakes = [];
+const SNOW_COUNT = 150;
+for (let i = 0; i < SNOW_COUNT; i++) {
+  snowflakes.push({
+    x: Math.random() * 2000,
+    y: Math.random() * 2000,
+    r: Math.random() * 3 + 1,
+    speed: Math.random() * 1 + 0.3,
+    drift: Math.random() * 0.5 - 0.25,
+    opacity: Math.random() * 0.6 + 0.3
+  });
+}
+
 let hitEffects = [];
 let ping = 0;
 let serverPlayers = {};
@@ -429,6 +447,8 @@ function startGame(playerName) {
     BULLET_LIFE = data.bulletLife;
     BULLET_RADIUS = data.bulletRadius;
     SHOOT_COOLDOWN = data.shootCooldown;
+    iceBlocks = data.iceBlocks || [];
+    iceLakes = data.iceLakes || [];
 
     // Authenticate if logged in
     if (authToken) {
@@ -663,16 +683,116 @@ resize();
 
 // ─── Rendering ───
 
+function drawBackground() {
+  // Snow ground gradient
+  const grd = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width);
+  grd.addColorStop(0, '#d6e8f0');
+  grd.addColorStop(1, '#b0c8d8');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 function drawGrid() {
-  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
   const g = 60, ox = -camera.x % g, oy = -camera.y % g;
   for (let x = ox; x < canvas.width; x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
   for (let y = oy; y < canvas.height; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
 }
 
 function drawBorder() {
-  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 4;
+  // Icy blue border with glow
+  ctx.save();
+  ctx.shadowColor = '#4fc3f7';
+  ctx.shadowBlur = 15;
+  ctx.strokeStyle = '#4fc3f7';
+  ctx.lineWidth = 4;
   ctx.strokeRect(-camera.x, -camera.y, mapW, mapH);
+  ctx.restore();
+}
+
+function drawIceLakes() {
+  for (const lake of iceLakes) {
+    const sx = lake.x - camera.x, sy = lake.y - camera.y;
+    if (sx + lake.r < -50 || sx - lake.r > canvas.width + 50 || sy + lake.r < -50 || sy - lake.r > canvas.height + 50) continue;
+
+    // Frozen lake surface
+    const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, lake.r);
+    grd.addColorStop(0, 'rgba(180, 225, 255, 0.5)');
+    grd.addColorStop(0.7, 'rgba(140, 200, 240, 0.35)');
+    grd.addColorStop(1, 'rgba(100, 180, 230, 0.1)');
+    ctx.beginPath();
+    ctx.arc(sx, sy, lake.r, 0, Math.PI * 2);
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    // Ice cracks
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 + lake.x * 0.01;
+      const len = lake.r * (0.4 + Math.sin(lake.y + i) * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(angle) * len, sy + Math.sin(angle) * len);
+      ctx.stroke();
+    }
+
+    // Rim highlight
+    ctx.beginPath();
+    ctx.arc(sx, sy, lake.r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(200, 230, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function drawIceBlocks() {
+  for (const block of iceBlocks) {
+    const sx = block.x - camera.x, sy = block.y - camera.y;
+    if (sx + block.w < -10 || sx > canvas.width + 10 || sy + block.h < -10 || sy > canvas.height + 10) continue;
+
+    // Ice block body
+    const grd = ctx.createLinearGradient(sx, sy, sx + block.w, sy + block.h);
+    grd.addColorStop(0, 'rgba(160, 210, 240, 0.85)');
+    grd.addColorStop(0.5, 'rgba(200, 235, 255, 0.9)');
+    grd.addColorStop(1, 'rgba(140, 195, 230, 0.85)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(sx, sy, block.w, block.h);
+
+    // Top highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillRect(sx + 2, sy + 2, block.w - 4, block.h * 0.3);
+
+    // Border
+    ctx.strokeStyle = 'rgba(100, 170, 210, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx, sy, block.w, block.h);
+
+    // Shine spots
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath();
+    ctx.arc(sx + block.w * 0.25, sy + block.h * 0.25, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx + block.w * 0.7, sy + block.h * 0.4, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawSnowflakes() {
+  for (const s of snowflakes) {
+    // Snow moves in screen space
+    s.y += s.speed;
+    s.x += s.drift;
+    if (s.y > canvas.height + 10) { s.y = -10; s.x = Math.random() * canvas.width; }
+    if (s.x > canvas.width + 10) s.x = -10;
+    if (s.x < -10) s.x = canvas.width + 10;
+
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${s.opacity})`;
+    ctx.fill();
+  }
 }
 
 function drawPlayer(p, isMe) {
@@ -724,10 +844,14 @@ function drawPlayer(p, isMe) {
 function drawBullet(b) {
   const sx = b.x - camera.x, sy = b.y - camera.y;
   if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) return;
-  ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI * 2);
-  ctx.fillStyle = b.color; ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1;
+  // Glow
+  ctx.save();
+  ctx.shadowColor = b.color;
+  ctx.shadowBlur = 8;
   ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2);
   ctx.fillStyle = b.color; ctx.fill();
+  ctx.restore();
+  // Core
   ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
   ctx.fillStyle = '#fff'; ctx.fill();
 }
@@ -763,11 +887,13 @@ function updateLeaderboard() {
 }
 
 function render() {
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
   const me = serverPlayers[myId];
   const rp = localPlayer || (me ? { x: me.x, y: me.y } : null);
   if (rp) { camera.x = rp.x - canvas.width / 2; camera.y = rp.y - canvas.height / 2; }
   drawGrid(); drawBorder();
+  drawIceLakes();
+  drawIceBlocks();
   updateLocalBullets();
   for (const b of getRenderBullets()) drawBullet(b);
   drawHitEffects();
@@ -777,6 +903,7 @@ function render() {
     drawPlayer({ ...me, x: localPlayer.x, y: localPlayer.y, angle: getAngle() }, true);
   } else if (me) drawPlayer(me, true);
   updateLeaderboard();
+  drawSnowflakes();
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
