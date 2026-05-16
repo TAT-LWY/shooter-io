@@ -149,10 +149,6 @@ canvas { display: block; cursor: crosshair; }
 #death h2 { font-size: 36px; color: #e74c3c; margin-bottom: 8px; }
 #death p { color: #aaa; }
 
-#controls {
-  position: fixed; bottom: 12px; left: 12px;
-  color: #555; font-size: 12px; z-index: 5;
-}
 </style>
 </head>
 <body>
@@ -230,7 +226,6 @@ canvas { display: block; cursor: crosshair; }
   </div>
 </div>
 
-<div id="controls">WASD 移动 · 鼠标瞄准 · 左键射击</div>
 
 <canvas id="game"></canvas>
 
@@ -695,10 +690,7 @@ function drawBackground() {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
-  const g = 60, ox = -camera.x % g, oy = -camera.y % g;
-  for (let x = ox; x < canvas.width; x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
-  for (let y = oy; y < canvas.height; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+  // Grid removed for cleaner look
 }
 
 function drawBorder() {
