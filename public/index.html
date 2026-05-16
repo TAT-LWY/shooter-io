@@ -20,27 +20,108 @@ canvas { display: block; cursor: crosshair; }
   z-index: 10;
 }
 #menu.hidden { display: none; }
-#menuBox { text-align: center; color: #fff; }
+#menuBox { text-align: center; color: #fff; width: 320px; }
 #menuBox h1 {
   font-size: 48px; margin-bottom: 8px;
   background: linear-gradient(135deg, #e74c3c, #f39c12);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-#menuBox p { color: #888; margin-bottom: 24px; }
-#nameInput {
-  padding: 12px 20px; font-size: 18px; border: 2px solid #444;
-  border-radius: 8px; background: #222; color: #fff; outline: none;
-  width: 240px; text-align: center;
-}
-#nameInput:focus { border-color: #e74c3c; }
-#playBtn {
-  display: block; margin: 16px auto 0; padding: 12px 48px;
-  font-size: 18px; font-weight: bold; border: none; border-radius: 8px;
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  color: #fff; cursor: pointer;
-}
-#playBtn:hover { opacity: 0.9; }
+#menuBox .subtitle { color: #888; margin-bottom: 24px; }
 
+/* Auth forms */
+.auth-section { margin-bottom: 20px; }
+.auth-tabs {
+  display: flex; margin-bottom: 16px; border-radius: 8px; overflow: hidden;
+  border: 1px solid #333;
+}
+.auth-tab {
+  flex: 1; padding: 10px; background: #222; color: #888;
+  border: none; cursor: pointer; font-size: 14px; font-weight: bold;
+  transition: all 0.2s;
+}
+.auth-tab.active { background: #e74c3c; color: #fff; }
+.auth-tab:hover:not(.active) { background: #2a2a2a; }
+
+.auth-form { display: none; }
+.auth-form.active { display: block; }
+
+.input-group { margin-bottom: 12px; }
+.input-group input {
+  width: 100%; padding: 12px 16px; font-size: 16px;
+  border: 2px solid #333; border-radius: 8px;
+  background: #1a1a1a; color: #fff; outline: none;
+  transition: border-color 0.2s;
+}
+.input-group input:focus { border-color: #e74c3c; }
+.input-group input::placeholder { color: #555; }
+
+.auth-btn {
+  width: 100%; padding: 12px; font-size: 16px; font-weight: bold;
+  border: none; border-radius: 8px; cursor: pointer;
+  color: #fff; transition: opacity 0.2s;
+}
+.auth-btn:hover { opacity: 0.9; }
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#loginBtn { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+#registerBtn { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+
+.auth-error {
+  color: #e74c3c; font-size: 13px; margin-top: 8px;
+  min-height: 20px;
+}
+
+.divider {
+  display: flex; align-items: center; margin: 16px 0; color: #555;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: #333;
+}
+.divider span { padding: 0 12px; font-size: 13px; }
+
+/* Guest play */
+#guestSection { margin-top: 8px; }
+#guestNameInput {
+  padding: 10px 16px; font-size: 15px; border: 2px solid #333;
+  border-radius: 8px; background: #1a1a1a; color: #fff; outline: none;
+  width: 100%; text-align: center; margin-bottom: 10px;
+}
+#guestNameInput:focus { border-color: #f39c12; }
+#guestPlayBtn {
+  width: 100%; padding: 10px; font-size: 15px; font-weight: bold;
+  border: 2px solid #555; border-radius: 8px; background: transparent;
+  color: #888; cursor: pointer; transition: all 0.2s;
+}
+#guestPlayBtn:hover { border-color: #f39c12; color: #f39c12; }
+
+/* User info when logged in */
+#userInfo {
+  display: none; margin-bottom: 16px; text-align: left;
+  background: #1a1a1a; padding: 14px; border-radius: 8px;
+  border: 1px solid #333;
+}
+#userInfo .welcome {
+  font-size: 16px; color: #f39c12; margin-bottom: 8px;
+}
+#userInfo .stat-row {
+  display: flex; justify-content: space-between; padding: 3px 0;
+  color: #aaa; font-size: 13px;
+}
+#userInfo .stat-val { color: #fff; font-weight: bold; }
+#logoutBtn {
+  margin-top: 10px; padding: 6px 12px; font-size: 12px;
+  border: 1px solid #555; border-radius: 4px; background: transparent;
+  color: #888; cursor: pointer;
+}
+#logoutBtn:hover { border-color: #e74c3c; color: #e74c3c; }
+#playBtnLoggedIn {
+  width: 100%; padding: 14px; font-size: 18px; font-weight: bold;
+  border: none; border-radius: 8px; cursor: pointer; color: #fff;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  margin-top: 12px;
+}
+#playBtnLoggedIn:hover { opacity: 0.9; }
+
+/* HUD */
 #hud {
   position: fixed; top: 12px; right: 12px;
   background: rgba(0,0,0,0.6); color: #fff; padding: 12px;
@@ -79,9 +160,59 @@ canvas { display: block; cursor: crosshair; }
 <div id="menu">
   <div id="menuBox">
     <h1>SHOOTER.IO</h1>
-    <p>多人在线射击</p>
-    <input id="nameInput" type="text" placeholder="输入你的名字" maxlength="12">
-    <button id="playBtn">开始游戏</button>
+    <p class="subtitle">多人在线射击</p>
+
+    <!-- User info (shown when logged in) -->
+    <div id="userInfo">
+      <div class="welcome">欢迎回来, <span id="welcomeName"></span></div>
+      <div class="stat-row"><span>总击杀</span><span class="stat-val" id="statKills">0</span></div>
+      <div class="stat-row"><span>总死亡</span><span class="stat-val" id="statDeaths">0</span></div>
+      <div class="stat-row"><span>K/D</span><span class="stat-val" id="statKD">0.00</span></div>
+      <div class="stat-row"><span>最高连杀</span><span class="stat-val" id="statStreak">0</span></div>
+      <div class="stat-row"><span>游戏场次</span><span class="stat-val" id="statGames">0</span></div>
+      <button id="logoutBtn">退出登录</button>
+      <button id="playBtnLoggedIn">开始游戏</button>
+    </div>
+
+    <!-- Auth section (shown when not logged in) -->
+    <div id="authSection" class="auth-section">
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin">登录</button>
+        <button class="auth-tab" id="tabRegister">注册</button>
+      </div>
+
+      <div class="auth-form active" id="formLogin">
+        <div class="input-group">
+          <input type="text" id="loginUsername" placeholder="用户名" maxlength="12" autocomplete="username">
+        </div>
+        <div class="input-group">
+          <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
+        </div>
+        <button class="auth-btn" id="loginBtn">登录</button>
+        <div class="auth-error" id="loginError"></div>
+      </div>
+
+      <div class="auth-form" id="formRegister">
+        <div class="input-group">
+          <input type="text" id="regUsername" placeholder="用户名 (2-12字符)" maxlength="12" autocomplete="username">
+        </div>
+        <div class="input-group">
+          <input type="password" id="regPassword" placeholder="密码 (至少6位)" autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <input type="password" id="regPassword2" placeholder="确认密码" autocomplete="new-password">
+        </div>
+        <button class="auth-btn" id="registerBtn">注册</button>
+        <div class="auth-error" id="regError"></div>
+      </div>
+
+      <div class="divider"><span>或者</span></div>
+
+      <div id="guestSection">
+        <input type="text" id="guestNameInput" placeholder="游客名字" maxlength="12">
+        <button id="guestPlayBtn">游客模式</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -111,15 +242,22 @@ const menu = document.getElementById('menu');
 const hud = document.getElementById('hud');
 const deathScreen = document.getElementById('death');
 const leaderboardEl = document.getElementById('leaderboard');
-const nameInput = document.getElementById('nameInput');
-const playBtn = document.getElementById('playBtn');
 const pingDisplay = document.getElementById('pingDisplay');
+
+// Auth elements
+const authSection = document.getElementById('authSection');
+const userInfo = document.getElementById('userInfo');
+const tabLogin = document.getElementById('tabLogin');
+const tabRegister = document.getElementById('tabRegister');
+const formLogin = document.getElementById('formLogin');
+const formRegister = document.getElementById('formRegister');
 
 let socket;
 let myId;
 let mapW, mapH;
+let authToken = localStorage.getItem('authToken');
+let currentUser = null;
 
-// Game constants from server
 let PLAYER_SPEED = 4;
 let PLAYER_RADIUS = 18;
 let BULLET_SPEED = 12;
@@ -133,42 +271,135 @@ let keys = { up: false, down: false, left: false, right: false };
 let playing = false;
 let wasAlive = true;
 
-// Client-side prediction
 let inputSeq = 0;
 let pendingInputs = [];
 let localPlayer = null;
 
-// Entity interpolation
 let stateBuffer = [];
 const INTERP_DELAY = 100;
 
-// Local bullets (client-side predicted)
 let localBullets = [];
 let localBulletId = 0;
 let lastLocalShot = 0;
 
-// Server bullets (for reconciliation)
 let serverBullets = [];
-let confirmedBulletMap = {}; // clientId -> serverId
+let confirmedBulletMap = {};
 
-// Hit effects
 let hitEffects = [];
-
-// Ping
 let ping = 0;
-
-// Server state
 let serverPlayers = {};
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
+// ─── Auth UI ───
 
-function startGame() {
-  const name = nameInput.value.trim() || 'Player';
+tabLogin.onclick = () => {
+  tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+  formLogin.classList.add('active'); formRegister.classList.remove('active');
+};
+tabRegister.onclick = () => {
+  tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+  formRegister.classList.add('active'); formLogin.classList.remove('active');
+};
+
+document.getElementById('loginBtn').onclick = async () => {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return; }
+
+  try {
+    document.getElementById('loginBtn').disabled = true;
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error; return; }
+    authToken = data.token;
+    localStorage.setItem('authToken', authToken);
+    currentUser = data.user;
+    showUserInfo(data.user);
+  } catch (e) {
+    errEl.textContent = '网络错误，请重试';
+  } finally {
+    document.getElementById('loginBtn').disabled = false;
+  }
+};
+
+document.getElementById('registerBtn').onclick = async () => {
+  const username = document.getElementById('regUsername').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const password2 = document.getElementById('regPassword2').value;
+  const errEl = document.getElementById('regError');
+  errEl.textContent = '';
+  if (!username || !password) { errEl.textContent = '请填写所有字段'; return; }
+  if (password !== password2) { errEl.textContent = '两次密码不一致'; return; }
+
+  try {
+    document.getElementById('registerBtn').disabled = true;
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error; return; }
+    authToken = data.token;
+    localStorage.setItem('authToken', authToken);
+    currentUser = data.user;
+    showUserInfo(data.user);
+  } catch (e) {
+    errEl.textContent = '网络错误，请重试';
+  } finally {
+    document.getElementById('registerBtn').disabled = false;
+  }
+};
+
+document.getElementById('logoutBtn').onclick = () => {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('authToken');
+  userInfo.style.display = 'none';
+  authSection.style.display = 'block';
+};
+
+function showUserInfo(user) {
+  authSection.style.display = 'none';
+  userInfo.style.display = 'block';
+  document.getElementById('welcomeName').textContent = user.username;
+  document.getElementById('statKills').textContent = user.stats.kills;
+  document.getElementById('statDeaths').textContent = user.stats.deaths;
+  const kd = user.stats.deaths > 0 ? (user.stats.kills / user.stats.deaths).toFixed(2) : user.stats.kills.toFixed(2);
+  document.getElementById('statKD').textContent = kd;
+  document.getElementById('statStreak').textContent = user.stats.bestKillStreak;
+  document.getElementById('statGames').textContent = user.stats.gamesPlayed;
+}
+
+// Check saved token on load
+async function checkAuth() {
+  if (!authToken) return;
+  try {
+    const res = await fetch('/api/auth/profile', {
+      headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      currentUser = { username: data.username, stats: data.stats };
+      showUserInfo(currentUser);
+    } else {
+      localStorage.removeItem('authToken');
+      authToken = null;
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+checkAuth();
+
+// ─── Game Start ───
+
+function startGame(playerName) {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   pingDisplay.classList.remove('hidden');
@@ -186,7 +417,16 @@ function startGame() {
     BULLET_LIFE = data.bulletLife;
     BULLET_RADIUS = data.bulletRadius;
     SHOOT_COOLDOWN = data.shootCooldown;
-    socket.emit('setName', name);
+
+    // Authenticate if logged in
+    if (authToken) {
+      socket.emit('auth', authToken);
+    }
+    socket.emit('setName', playerName);
+  });
+
+  socket.on('authSuccess', (data) => {
+    // Server confirmed auth
   });
 
   socket.on('state', (s) => {
@@ -197,17 +437,12 @@ function startGame() {
     }
 
     serverPlayers = s.players;
-
-    // Reconcile server bullets with local predictions
     serverBullets = s.bullets;
     reconcileBullets(s.bullets);
 
     const me = s.players[myId];
     if (me) {
-      if (!me.alive && wasAlive) {
-        deathScreen.classList.remove('hidden');
-        localPlayer = null;
-      }
+      if (!me.alive && wasAlive) deathScreen.classList.remove('hidden');
       if (me.alive && !wasAlive) {
         deathScreen.classList.add('hidden');
         localPlayer = { x: me.x, y: me.y };
@@ -215,7 +450,6 @@ function startGame() {
       }
       wasAlive = me.alive;
 
-      // Server reconciliation for movement
       if (me.alive && localPlayer) {
         localPlayer.x = me.x;
         localPlayer.y = me.y;
@@ -232,25 +466,13 @@ function startGame() {
   });
 
   socket.on('shootConfirm', (data) => {
-    if (data.clientId != null) {
-      confirmedBulletMap[data.clientId] = data.serverId;
-    }
+    if (data.clientId != null) confirmedBulletMap[data.clientId] = data.serverId;
   });
 
   socket.on('hits', (events) => {
     for (const hit of events) {
-      // Add hit effect
-      hitEffects.push({
-        x: hit.x, y: hit.y,
-        time: 20,
-        killed: hit.killed
-      });
-
-      // Remove local bullet that hit
-      // Update local HP display immediately
-      if (serverPlayers[hit.targetId]) {
-        serverPlayers[hit.targetId].hp = hit.hp;
-      }
+      hitEffects.push({ x: hit.x, y: hit.y, time: 20, killed: hit.killed });
+      if (serverPlayers[hit.targetId]) serverPlayers[hit.targetId].hp = hit.hp;
     }
   });
 
@@ -261,31 +483,45 @@ function startGame() {
     pingDisplay.textContent = `PING: ${ping}ms`;
   });
 
-  setInterval(() => {
-    if (socket) socket.emit('ping_check', Date.now());
-  }, 2000);
+  setInterval(() => { if (socket) socket.emit('ping_check', Date.now()); }, 2000);
 }
 
-function reconcileBullets(sBullets) {
-  // Build a set of server bullet ids
-  const serverIds = new Set(sBullets.map(b => b.id));
+// Play button handlers
+document.getElementById('playBtnLoggedIn').onclick = () => {
+  startGame(currentUser ? currentUser.username : 'Player');
+};
+document.getElementById('guestPlayBtn').onclick = () => {
+  const name = document.getElementById('guestNameInput').value.trim() || 'Player';
+  startGame(name);
+};
+document.getElementById('guestNameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const name = document.getElementById('guestNameInput').value.trim() || 'Player';
+    startGame(name);
+  }
+});
 
-  // Remove local bullets that have been confirmed and exist on server
-  // (server is now tracking them)
+// Enter key on auth forms
+document.getElementById('loginPassword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+document.getElementById('regPassword2').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('registerBtn').click();
+});
+
+// ─── Game Logic ───
+
+function reconcileBullets(sBullets) {
+  const serverIds = new Set(sBullets.map(b => b.id));
   localBullets = localBullets.filter(lb => {
     const serverId = confirmedBulletMap[lb.id];
-    if (serverId != null && serverIds.has(serverId)) {
-      return false; // Server has it, remove local prediction
-    }
+    if (serverId != null && serverIds.has(serverId)) return false;
     if (serverId != null && !serverIds.has(serverId)) {
-      // Server confirmed but bullet is gone (hit or expired)
       delete confirmedBulletMap[lb.id];
       return false;
     }
-    // Not yet confirmed, keep local prediction
     lb.life--;
-    if (lb.life <= 0) return false;
-    return true;
+    return lb.life > 0;
   });
 }
 
@@ -304,11 +540,6 @@ function applyMovement(obj, inputKeys) {
   obj.y = Math.max(PLAYER_RADIUS, Math.min(mapH - PLAYER_RADIUS, obj.y));
 }
 
-playBtn.addEventListener('click', startGame);
-nameInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') startGame();
-});
-
 window.addEventListener('keydown', (e) => {
   if (!playing) return;
   if (e.key === 'w' || e.key === 'W') keys.up = true;
@@ -322,34 +553,25 @@ window.addEventListener('keyup', (e) => {
   if (e.key === 'a' || e.key === 'A') keys.left = false;
   if (e.key === 'd' || e.key === 'D') keys.right = false;
 });
-window.addEventListener('mousemove', (e) => {
-  mouse.x = e.clientX;
-  mouse.y = e.clientY;
-});
+window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
 
 let shooting = false;
 window.addEventListener('mousedown', (e) => { if (e.button === 0) shooting = true; });
 window.addEventListener('mouseup', (e) => { if (e.button === 0) shooting = false; });
 
 function getAngle() {
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  return Math.atan2(mouse.y - cy, mouse.x - cx);
+  return Math.atan2(mouse.y - canvas.height / 2, mouse.x - canvas.width / 2);
 }
 
 function tryShoot() {
   if (!socket || !playing) return;
   const me = serverPlayers[myId];
   if (!me || !me.alive || !localPlayer) return;
-
   const now = Date.now();
   if (now - lastLocalShot < SHOOT_COOLDOWN) return;
   lastLocalShot = now;
-
   const angle = getAngle();
   const cId = localBulletId++;
-
-  // Create local predicted bullet
   localBullets.push({
     id: cId,
     x: localPlayer.x + Math.cos(angle) * (PLAYER_RADIUS + 8),
@@ -359,8 +581,6 @@ function tryShoot() {
     life: BULLET_LIFE,
     color: me.color
   });
-
-  // Send to server
   socket.emit('shoot', { angle, clientId: cId });
 }
 
@@ -368,293 +588,161 @@ function sendInput() {
   if (!socket || !playing) return;
   const me = serverPlayers[myId];
   if (!me || !me.alive) return;
-
-  const angle = getAngle();
   inputSeq++;
-  socket.emit('input', { keys: { ...keys }, angle, seq: inputSeq });
-
-  // Client-side prediction
+  socket.emit('input', { keys: { ...keys }, angle: getAngle(), seq: inputSeq });
   if (localPlayer) {
     applyMovement(localPlayer, keys);
     pendingInputs.push({ seq: inputSeq, keys: { ...keys } });
     if (pendingInputs.length > 120) pendingInputs.shift();
   }
-
   if (shooting) tryShoot();
 }
 setInterval(sendInput, 1000 / 30);
 
-// Interpolate other players
 function getInterpolatedPlayers() {
   const now = Date.now();
   const renderTime = now - INTERP_DELAY;
   const result = {};
-
   if (stateBuffer.length < 2) {
     for (const id in serverPlayers) result[id] = { ...serverPlayers[id] };
     return result;
   }
-
-  let prev = stateBuffer[0];
-  let next = stateBuffer[1];
+  let prev = stateBuffer[0], next = stateBuffer[1];
   for (let i = 0; i < stateBuffer.length - 1; i++) {
     if (stateBuffer[i].time <= renderTime && stateBuffer[i + 1].time >= renderTime) {
-      prev = stateBuffer[i];
-      next = stateBuffer[i + 1];
-      break;
+      prev = stateBuffer[i]; next = stateBuffer[i + 1]; break;
     }
   }
   if (renderTime > stateBuffer[stateBuffer.length - 1].time) {
     prev = stateBuffer[stateBuffer.length - 2] || stateBuffer[stateBuffer.length - 1];
     next = stateBuffer[stateBuffer.length - 1];
   }
-
   const total = next.time - prev.time;
   const t = total > 0 ? Math.max(0, Math.min(1, (renderTime - prev.time) / total)) : 1;
-
   const allIds = new Set([...Object.keys(prev.players), ...Object.keys(next.players)]);
   for (const id of allIds) {
-    const p0 = prev.players[id];
-    const p1 = next.players[id];
+    const p0 = prev.players[id]; const p1 = next.players[id];
     if (p0 && p1) {
-      result[id] = {
-        ...p1,
-        x: p0.x + (p1.x - p0.x) * t,
-        y: p0.y + (p1.y - p0.y) * t,
-        angle: p0.angle + (p1.angle - p0.angle) * t
-      };
-    } else if (p1) {
-      result[id] = { ...p1 };
-    } else if (p0) {
-      result[id] = { ...p0 };
-    }
+      result[id] = { ...p1, x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t, angle: p0.angle + (p1.angle - p0.angle) * t };
+    } else result[id] = { ...(p1 || p0) };
   }
   return result;
 }
 
-// Get interpolated bullets from server + extrapolation
 function getRenderBullets() {
-  const allBullets = [];
-  const confirmedServerIds = new Set(Object.values(confirmedBulletMap));
-
-  // Server bullets (interpolated positions)
-  for (const b of serverBullets) {
-    if (confirmedServerIds.has(b.id)) continue; // Don't double-draw
-    allBullets.push({ x: b.x, y: b.y, color: b.color });
-  }
-
-  // Local predicted bullets
-  for (const lb of localBullets) {
-    allBullets.push({ x: lb.x, y: lb.y, color: lb.color });
-  }
-
-  return allBullets;
+  const all = [];
+  const confirmed = new Set(Object.values(confirmedBulletMap));
+  for (const b of serverBullets) { if (!confirmed.has(b.id)) all.push({ x: b.x, y: b.y, color: b.color }); }
+  for (const lb of localBullets) all.push({ x: lb.x, y: lb.y, color: lb.color });
+  return all;
 }
 
-// Update local bullet positions each frame
 function updateLocalBullets() {
-  for (const b of localBullets) {
-    b.x += b.vx;
-    b.y += b.vy;
-  }
-  // Remove out of bounds
+  for (const b of localBullets) { b.x += b.vx; b.y += b.vy; }
   for (let i = localBullets.length - 1; i >= 0; i--) {
     const b = localBullets[i];
-    if (b.x < 0 || b.x > mapW || b.y < 0 || b.y > mapH) {
-      localBullets.splice(i, 1);
-    }
+    if (b.x < 0 || b.x > mapW || b.y < 0 || b.y > mapH) localBullets.splice(i, 1);
   }
 }
 
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+// ─── Rendering ───
+
 function drawGrid() {
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 1;
-  const gridSize = 60;
-  const offX = -camera.x % gridSize;
-  const offY = -camera.y % gridSize;
-  for (let x = offX; x < canvas.width; x += gridSize) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-  }
-  for (let y = offY; y < canvas.height; y += gridSize) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-  }
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+  const g = 60, ox = -camera.x % g, oy = -camera.y % g;
+  for (let x = ox; x < canvas.width; x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+  for (let y = oy; y < canvas.height; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
 }
 
 function drawBorder() {
-  ctx.strokeStyle = '#e74c3c';
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 4;
   ctx.strokeRect(-camera.x, -camera.y, mapW, mapH);
 }
 
 function drawPlayer(p, isMe) {
-  const sx = p.x - camera.x;
-  const sy = p.y - camera.y;
+  const sx = p.x - camera.x, sy = p.y - camera.y;
   if (sx < -60 || sx > canvas.width + 60 || sy < -60 || sy > canvas.height + 60) return;
-
-  ctx.save();
-  ctx.translate(sx, sy);
-
-  // gun
-  ctx.save();
-  ctx.rotate(p.angle);
-  ctx.fillStyle = '#888';
-  ctx.fillRect(10, -4, 20, 8);
+  ctx.save(); ctx.translate(sx, sy);
+  ctx.save(); ctx.rotate(p.angle);
+  ctx.fillStyle = '#888'; ctx.fillRect(10, -4, 20, 8);
   ctx.restore();
-
-  // body
-  ctx.beginPath();
-  ctx.arc(0, 0, 18, 0, Math.PI * 2);
-  ctx.fillStyle = p.alive ? p.color : '#333';
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2);
+  ctx.fillStyle = p.alive ? p.color : '#333'; ctx.fill();
   ctx.strokeStyle = isMe ? '#fff' : 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = isMe ? 3 : 1;
-  ctx.stroke();
-
-  // hp bar
+  ctx.lineWidth = isMe ? 3 : 1; ctx.stroke();
   if (p.alive) {
-    const barW = 36;
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-barW / 2, -30, barW, 5);
+    const bw = 36;
+    ctx.fillStyle = '#333'; ctx.fillRect(-bw/2, -30, bw, 5);
     ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
-    ctx.fillRect(-barW / 2, -30, barW * (p.hp / 100), 5);
+    ctx.fillRect(-bw/2, -30, bw * (p.hp / 100), 5);
   }
-
-  // name
-  ctx.fillStyle = '#fff';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(p.name, 0, 34);
-
   ctx.restore();
 }
 
 function drawBullet(b) {
-  const sx = b.x - camera.x;
-  const sy = b.y - camera.y;
+  const sx = b.x - camera.x, sy = b.y - camera.y;
   if (sx < -10 || sx > canvas.width + 10 || sy < -10 || sy > canvas.height + 10) return;
-
-  // Bullet glow trail
-  ctx.beginPath();
-  ctx.arc(sx, sy, 7, 0, Math.PI * 2);
-  ctx.fillStyle = b.color;
-  ctx.globalAlpha = 0.3;
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  ctx.beginPath();
-  ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-  ctx.fillStyle = b.color;
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff';
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+  ctx.fillStyle = b.color; ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = b.color; ctx.fill();
+  ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff'; ctx.fill();
 }
 
 function drawHitEffects() {
   for (let i = hitEffects.length - 1; i >= 0; i--) {
     const h = hitEffects[i];
-    const sx = h.x - camera.x;
-    const sy = h.y - camera.y;
+    const sx = h.x - camera.x, sy = h.y - camera.y;
     const progress = 1 - h.time / 20;
-
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.globalAlpha = 1 - progress;
-
+    ctx.save(); ctx.translate(sx, sy); ctx.globalAlpha = 1 - progress;
     if (h.killed) {
-      // Explosion effect for kills
-      const radius = 20 + progress * 40;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#e74c3c';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      // Inner flash
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#f39c12';
-      ctx.globalAlpha = (1 - progress) * 0.5;
-      ctx.fill();
+      const r = 20 + progress * 40;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#f39c12'; ctx.globalAlpha = (1 - progress) * 0.5; ctx.fill();
     } else {
-      // Hit spark
-      const radius = 8 + progress * 15;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      const r = 8 + progress * 15;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
     }
-
-    ctx.restore();
-    ctx.globalAlpha = 1;
-
+    ctx.restore(); ctx.globalAlpha = 1;
     h.time--;
     if (h.time <= 0) hitEffects.splice(i, 1);
   }
 }
 
 function updateLeaderboard() {
-  const sorted = Object.values(serverPlayers)
-    .sort((a, b) => b.kills - a.kills)
-    .slice(0, 8);
+  const sorted = Object.values(serverPlayers).sort((a, b) => b.kills - a.kills).slice(0, 8);
   leaderboardEl.innerHTML = sorted.map(p =>
     `<div class="lb-row"><span class="lb-name" style="color:${p.color}">${p.name || 'Player'}</span><span>${p.kills}</span></div>`
   ).join('');
 }
 
-let lastFrame = 0;
-function render(timestamp) {
-  // Delta time for smooth local bullet updates
-  if (!lastFrame) lastFrame = timestamp;
-  const dt = Math.min((timestamp - lastFrame) / (1000 / 60), 2); // normalize to 60fps
-  lastFrame = timestamp;
-
-  ctx.fillStyle = '#111';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+function render() {
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   const me = serverPlayers[myId];
-  const renderPos = localPlayer || (me ? { x: me.x, y: me.y } : null);
-  if (renderPos) {
-    camera.x = renderPos.x - canvas.width / 2;
-    camera.y = renderPos.y - canvas.height / 2;
-  }
-
-  drawGrid();
-  drawBorder();
-
-  // Update and draw bullets
+  const rp = localPlayer || (me ? { x: me.x, y: me.y } : null);
+  if (rp) { camera.x = rp.x - canvas.width / 2; camera.y = rp.y - canvas.height / 2; }
+  drawGrid(); drawBorder();
   updateLocalBullets();
-  const allBullets = getRenderBullets();
-  for (const b of allBullets) drawBullet(b);
-
-  // Draw hit effects
+  for (const b of getRenderBullets()) drawBullet(b);
   drawHitEffects();
-
-  // Interpolated other players
-  const interpolated = getInterpolatedPlayers();
-  for (const id in interpolated) {
-    if (id === myId) continue;
-    drawPlayer(interpolated[id], false);
-  }
-
-  // Draw self with predicted position
+  const interp = getInterpolatedPlayers();
+  for (const id in interp) { if (id !== myId) drawPlayer(interp[id], false); }
   if (me && localPlayer) {
-    drawPlayer({
-      ...me,
-      x: localPlayer.x,
-      y: localPlayer.y,
-      angle: getAngle()
-    }, true);
-  } else if (me) {
-    drawPlayer(me, true);
-  }
-
+    drawPlayer({ ...me, x: localPlayer.x, y: localPlayer.y, angle: getAngle() }, true);
+  } else if (me) drawPlayer(me, true);
   updateLeaderboard();
   requestAnimationFrame(render);
 }
-
 requestAnimationFrame(render);
 </script>
 </body>

@@ -2,6 +2,9 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
+const { pool, initDB } = require('./db');
+const { router: authRouter, JWT_SECRET } = require('./routes/auth');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,7 +13,12 @@ const io = new Server(server, {
   pingTimeout: 5000
 });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/auth', authRouter);
+
+// Init database
+initDB();
 
 const MAP_W = 3000;
 const MAP_H = 3000;
@@ -24,7 +32,7 @@ const MAX_HP = 100;
 const BULLET_DAMAGE = 20;
 const RESPAWN_TIME = 3000;
 const SHOOT_COOLDOWN = 150;
-const STATE_SEND_RATE = 20; // Send state 20 times/sec instead of 60
+const STATE_SEND_RATE = 20;
 
 const players = {};
 const bullets = [];
@@ -39,6 +47,26 @@ const COLORS = [
 
 function randomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)];
+}
+
+// Save player stats to database
+async function savePlayerStats(player) {
+  if (!player.userId) return;
+  try {
+    const playTime = Math.floor((Date.now() - player.joinTime) / 1000);
+    await pool.query(
+      `UPDATE users SET
+        kills = kills + $1,
+        deaths = deaths + $2,
+        games_played = games_played + 1,
+        total_play_time = total_play_time + $3,
+        best_kill_streak = GREATEST(best_kill_streak, $4)
+      WHERE id = $5`,
+      [player.sessionKills, player.sessionDeaths, playTime, player.bestStreakThisSession, player.userId]
+    );
+  } catch (err) {
+    console.error('Failed to save stats:', err.message);
+  }
 }
 
 io.on('connection', (socket) => {
@@ -56,7 +84,14 @@ io.on('connection', (socket) => {
     input: { up: false, down: false, left: false, right: false },
     lastShot: 0,
     seq: 0,
-    ping: 0
+    ping: 0,
+    userId: null,
+    username: null,
+    sessionKills: 0,
+    sessionDeaths: 0,
+    killStreak: 0,
+    bestStreakThisSession: 0,
+    joinTime: Date.now()
   };
   players[socket.id] = player;
 
@@ -74,8 +109,28 @@ io.on('connection', (socket) => {
     tickRate: TICK_RATE
   });
 
+  socket.on('auth', async (token) => {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const result = await pool.query('SELECT id, username FROM users WHERE id = $1', [decoded.id]);
+      if (result.rows.length > 0) {
+        const user = result.rows[0];
+        player.userId = user.id;
+        player.username = user.username;
+        player.name = user.username;
+        socket.emit('authSuccess', { username: user.username });
+      }
+    } catch (err) {
+      socket.emit('authError', '登录已过期');
+    }
+  });
+
   socket.on('setName', (name) => {
-    player.name = String(name).slice(0, 12) || 'Player';
+    if (player.username) {
+      player.name = player.username;
+    } else {
+      player.name = String(name).slice(0, 12) || 'Player';
+    }
   });
 
   socket.on('input', (data) => {
@@ -104,7 +159,6 @@ io.on('connection', (socket) => {
       color: player.color
     });
 
-    // Confirm bullet to shooter with server bullet id
     socket.emit('shootConfirm', { clientId: data && data.clientId, serverId: bId });
   });
 
@@ -113,7 +167,8 @@ io.on('connection', (socket) => {
     player.ping = Date.now() - clientTime;
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
+    await savePlayerStats(player);
     delete players[socket.id];
   });
 });
@@ -171,7 +226,19 @@ function tick() {
         if (p.hp <= 0) {
           p.alive = false;
           p.deaths++;
-          if (players[b.ownerId]) players[b.ownerId].kills++;
+          p.sessionDeaths++;
+          p.killStreak = 0;
+
+          const shooter = players[b.ownerId];
+          if (shooter) {
+            shooter.kills++;
+            shooter.sessionKills++;
+            shooter.killStreak++;
+            if (shooter.killStreak > shooter.bestStreakThisSession) {
+              shooter.bestStreakThisSession = shooter.killStreak;
+            }
+          }
+
           setTimeout(() => {
             p.hp = MAX_HP;
             p.alive = true;
@@ -184,12 +251,10 @@ function tick() {
     }
   }
 
-  // Broadcast hit events immediately
   if (hitEvents.length > 0) {
     io.emit('hits', hitEvents);
   }
 
-  // Send full state at reduced rate
   const stateInterval = Math.round(TICK_RATE / STATE_SEND_RATE);
   if (serverTick % stateInterval === 0) {
     stateTick++;
