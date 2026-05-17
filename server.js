@@ -36,9 +36,208 @@ const STATE_SEND_RATE = 20;
 
 const players = {};
 const bullets = [];
+const mobs = {};
 let bulletId = 0;
+let mobIdCounter = 0;
 let serverTick = 0;
 let stateTick = 0;
+
+// ─── Mob System ───
+const MOB_TYPES = {
+  wolf: {
+    name: '雪狼',
+    hp: 60,
+    speed: 2.5,
+    radius: 14,
+    color: '#a0b0c0',
+    aggroRange: 300,
+    damage: 8,
+    attackCooldown: 800, // melee attack ms
+    xpReward: 1,
+    healReward: 15,
+    respawnTime: 15000
+  },
+  golem: {
+    name: '冰霜巨人',
+    hp: 200,
+    speed: 1.2,
+    radius: 28,
+    color: '#5599cc',
+    aggroRange: 400,
+    damage: 15,
+    attackCooldown: 2000, // shoots ice bolt
+    shootRange: 350,
+    bulletSpeed: 8,
+    xpReward: 3,
+    healReward: 35,
+    respawnTime: 30000
+  }
+};
+
+const MOB_SPAWNS = [
+  // Wolves - scattered around map
+  { type: 'wolf', x: 300, y: 600 },
+  { type: 'wolf', x: 800, y: 400 },
+  { type: 'wolf', x: 1800, y: 600 },
+  { type: 'wolf', x: 2500, y: 500 },
+  { type: 'wolf', x: 400, y: 1600 },
+  { type: 'wolf', x: 1200, y: 2000 },
+  { type: 'wolf', x: 2000, y: 1800 },
+  { type: 'wolf', x: 2600, y: 2200 },
+  { type: 'wolf', x: 1000, y: 1200 },
+  { type: 'wolf', x: 2200, y: 1200 },
+  // Golems - fewer, near center and key areas
+  { type: 'golem', x: 750, y: 750 },
+  { type: 'golem', x: 2250, y: 750 },
+  { type: 'golem', x: 1500, y: 1500 },
+  { type: 'golem', x: 750, y: 2250 },
+  { type: 'golem', x: 2250, y: 2250 },
+];
+
+function spawnMob(spawn) {
+  const type = MOB_TYPES[spawn.type];
+  const id = 'mob_' + (mobIdCounter++);
+  mobs[id] = {
+    id,
+    type: spawn.type,
+    x: spawn.x + (Math.random() - 0.5) * 60,
+    y: spawn.y + (Math.random() - 0.5) * 60,
+    spawnX: spawn.x,
+    spawnY: spawn.y,
+    hp: type.hp,
+    maxHp: type.hp,
+    radius: type.radius,
+    speed: type.speed,
+    color: type.color,
+    name: type.name,
+    alive: true,
+    angle: Math.random() * Math.PI * 2,
+    targetId: null,
+    lastAttack: 0,
+    wanderAngle: Math.random() * Math.PI * 2,
+    wanderTimer: 0
+  };
+  return id;
+}
+
+// Spawn all mobs
+for (const spawn of MOB_SPAWNS) {
+  spawnMob(spawn);
+}
+
+function findClosestPlayer(mx, my, range) {
+  let closest = null, minDist = range * range;
+  for (const id in players) {
+    const p = players[id];
+    if (!p.alive) continue;
+    const dx = p.x - mx, dy = p.y - my;
+    const dist = dx * dx + dy * dy;
+    if (dist < minDist) { minDist = dist; closest = id; }
+  }
+  return closest;
+}
+
+function updateMobs() {
+  for (const id in mobs) {
+    const m = mobs[id];
+    if (!m.alive) continue;
+
+    const type = MOB_TYPES[m.type];
+
+    // Find target
+    m.targetId = findClosestPlayer(m.x, m.y, type.aggroRange);
+
+    if (m.targetId && players[m.targetId]) {
+      const target = players[m.targetId];
+      const dx = target.x - m.x, dy = target.y - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      m.angle = Math.atan2(dy, dx);
+
+      if (m.type === 'golem' && type.shootRange && dist < type.shootRange) {
+        // Golem: shoot ice bolt
+        const now = Date.now();
+        if (now - m.lastAttack > type.attackCooldown) {
+          m.lastAttack = now;
+          const angle = m.angle;
+          bullets.push({
+            id: bulletId++,
+            ownerId: id, // mob id
+            x: m.x + Math.cos(angle) * (m.radius + 5),
+            y: m.y + Math.sin(angle) * (m.radius + 5),
+            vx: Math.cos(angle) * type.bulletSpeed,
+            vy: Math.sin(angle) * type.bulletSpeed,
+            life: 50,
+            color: '#88ccff',
+            isMobBullet: true,
+            damage: type.damage
+          });
+        }
+        // Move closer if far
+        if (dist > type.shootRange * 0.6) {
+          m.x += (dx / dist) * m.speed;
+          m.y += (dy / dist) * m.speed;
+        }
+      } else if (m.type === 'wolf') {
+        // Wolf: chase and melee
+        if (dist > m.radius + PLAYER_RADIUS + 5) {
+          m.x += (dx / dist) * m.speed;
+          m.y += (dy / dist) * m.speed;
+        } else {
+          // Melee attack
+          const now = Date.now();
+          if (now - m.lastAttack > type.attackCooldown) {
+            m.lastAttack = now;
+            target.hp -= type.damage;
+            io.emit('hits', [{
+              targetId: m.targetId,
+              shooterId: id,
+              x: target.x, y: target.y,
+              hp: target.hp,
+              killed: target.hp <= 0
+            }]);
+            if (target.hp <= 0) {
+              target.alive = false;
+              target.deaths++;
+              target.sessionDeaths++;
+              target.killStreak = 0;
+              setTimeout(() => {
+                target.hp = MAX_HP;
+                target.alive = true;
+                target.x = Math.random() * (MAP_W - 200) + 100;
+                target.y = Math.random() * (MAP_H - 200) + 100;
+              }, RESPAWN_TIME);
+            }
+          }
+        }
+      }
+    } else {
+      // Wander
+      m.wanderTimer--;
+      if (m.wanderTimer <= 0) {
+        m.wanderAngle = Math.random() * Math.PI * 2;
+        m.wanderTimer = 60 + Math.floor(Math.random() * 120);
+      }
+      m.x += Math.cos(m.wanderAngle) * m.speed * 0.3;
+      m.y += Math.sin(m.wanderAngle) * m.speed * 0.3;
+
+      // Don't wander too far from spawn
+      const dsx = m.x - m.spawnX, dsy = m.y - m.spawnY;
+      if (dsx * dsx + dsy * dsy > 200 * 200) {
+        m.wanderAngle = Math.atan2(-dsy, -dsx);
+      }
+    }
+
+    // Block collision
+    if (collidesWithBlock(m.x, m.y, m.radius)) {
+      m.x -= Math.cos(m.angle) * m.speed * 2;
+      m.y -= Math.sin(m.angle) * m.speed * 2;
+    }
+
+    // Keep in map
+    m.x = Math.max(m.radius, Math.min(MAP_W - m.radius, m.x));
+    m.y = Math.max(m.radius, Math.min(MAP_H - m.radius, m.y));
+  }
+}
 
 // Map obstacles - ice blocks (circles for irregular shapes)
 const iceBlocks = [
@@ -373,6 +572,9 @@ function tick() {
     applyInput(players[id]);
   }
 
+  // Update mobs AI
+  updateMobs();
+
   const hitEvents = [];
 
   for (let i = bullets.length - 1; i >= 0; i--) {
@@ -384,27 +586,27 @@ function tick() {
       bullets.splice(i, 1);
       continue;
     }
+
+    // Bullet vs Players
+    let bulletRemoved = false;
     for (const id in players) {
       const p = players[id];
       if (!p.alive || id === b.ownerId) continue;
-      const dx = p.x - b.x;
-      const dy = p.y - b.y;
+      const dx = p.x - b.x, dy = p.y - b.y;
       if (dx * dx + dy * dy < (PLAYER_RADIUS + BULLET_RADIUS) ** 2) {
-        p.hp -= BULLET_DAMAGE;
+        const dmg = b.isMobBullet ? (b.damage || 15) : BULLET_DAMAGE;
+        p.hp -= dmg;
         hitEvents.push({
-          targetId: id,
-          shooterId: b.ownerId,
-          x: b.x, y: b.y,
-          hp: p.hp,
-          killed: p.hp <= 0
+          targetId: id, shooterId: b.ownerId,
+          x: b.x, y: b.y, hp: p.hp, killed: p.hp <= 0
         });
         bullets.splice(i, 1);
+        bulletRemoved = true;
         if (p.hp <= 0) {
           p.alive = false;
           p.deaths++;
           p.sessionDeaths++;
           p.killStreak = 0;
-
           const shooter = players[b.ownerId];
           if (shooter) {
             shooter.kills++;
@@ -414,7 +616,6 @@ function tick() {
               shooter.bestStreakThisSession = shooter.killStreak;
             }
           }
-
           setTimeout(() => {
             p.hp = MAX_HP;
             p.alive = true;
@@ -423,6 +624,57 @@ function tick() {
           }, RESPAWN_TIME);
         }
         break;
+      }
+    }
+    if (bulletRemoved) continue;
+
+    // Bullet vs Mobs (only player bullets can hurt mobs)
+    if (!b.isMobBullet) {
+      for (const mid in mobs) {
+        const m = mobs[mid];
+        if (!m.alive) continue;
+        const dx = m.x - b.x, dy = m.y - b.y;
+        if (dx * dx + dy * dy < (m.radius + BULLET_RADIUS) ** 2) {
+          m.hp -= BULLET_DAMAGE;
+          hitEvents.push({
+            targetId: mid, shooterId: b.ownerId,
+            x: b.x, y: b.y, hp: m.hp, killed: m.hp <= 0, isMob: true
+          });
+          bullets.splice(i, 1);
+          if (m.hp <= 0) {
+            m.alive = false;
+            // Reward the killer
+            const killer = players[b.ownerId];
+            if (killer) {
+              const type = MOB_TYPES[m.type];
+              killer.kills += type.xpReward;
+              killer.sessionKills += type.xpReward;
+              killer.hp = Math.min(MAX_HP, killer.hp + type.healReward);
+              // Notify killer of reward
+              const killerSocket = io.sockets.sockets.get(b.ownerId);
+              if (killerSocket) {
+                killerSocket.emit('mobKillReward', {
+                  heal: type.healReward,
+                  xp: type.xpReward,
+                  mobName: type.name,
+                  x: m.x, y: m.y
+                });
+              }
+            }
+            // Respawn mob after delay
+            const spawnData = MOB_SPAWNS.find(s =>
+              Math.abs(s.x - m.spawnX) < 10 && Math.abs(s.y - m.spawnY) < 10
+            );
+            if (spawnData) {
+              const respawnTime = MOB_TYPES[m.type].respawnTime;
+              setTimeout(() => {
+                delete mobs[mid];
+                spawnMob(spawnData);
+              }, respawnTime);
+            }
+          }
+          break;
+        }
       }
     }
   }
@@ -437,7 +689,8 @@ function tick() {
     const state = {
       tick: stateTick,
       players: {},
-      bullets: bullets.map(b => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, color: b.color }))
+      bullets: bullets.map(b => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, color: b.color })),
+      mobs: {}
     };
     for (const id in players) {
       const p = players[id];
@@ -445,6 +698,15 @@ function tick() {
         x: p.x, y: p.y, angle: p.angle, hp: p.hp,
         name: p.name, color: p.color, alive: p.alive,
         kills: p.kills, deaths: p.deaths, seq: p.seq
+      };
+    }
+    for (const id in mobs) {
+      const m = mobs[id];
+      if (!m.alive) continue;
+      state.mobs[id] = {
+        x: m.x, y: m.y, angle: m.angle, hp: m.hp, maxHp: m.maxHp,
+        radius: m.radius, color: m.color, name: m.name, type: m.type,
+        alive: m.alive
       };
     }
     io.emit('state', state);
