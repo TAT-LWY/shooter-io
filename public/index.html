@@ -126,8 +126,15 @@ canvas { display: block; cursor: crosshair; }
   position: fixed; top: 12px; right: 12px;
   background: rgba(0,0,0,0.5); padding: 4px;
   border-radius: 8px; border: 1px solid rgba(100,180,255,0.3); z-index: 5;
+  transition: all 0.3s ease;
 }
 #minimap-container.hidden { display: none; }
+#minimap-container.expanded {
+  top: 50%; left: 50%; right: auto;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.75); padding: 8px;
+  border: 2px solid rgba(100,180,255,0.5);
+}
 #minimap { display: block; border-radius: 6px; }
 
 #pingDisplay {
@@ -297,6 +304,7 @@ let iceBlocks = [];
 let iceLakes = [];
 let borderPoints = [];
 let spawnPoint = { x: 0, y: 0 };
+let minimapExpanded = false;
 
 // Snowflake particles
 const snowflakes = [];
@@ -633,6 +641,19 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 's' || e.key === 'S') keys.down = true;
   if (e.key === 'a' || e.key === 'A') keys.left = true;
   if (e.key === 'd' || e.key === 'D') keys.right = true;
+  if (e.key === 'm' || e.key === 'M') {
+    minimapExpanded = !minimapExpanded;
+    const container = document.getElementById('minimap-container');
+    if (minimapExpanded) {
+      minimapCanvas.width = 500;
+      minimapCanvas.height = 375;
+      container.classList.add('expanded');
+    } else {
+      minimapCanvas.width = 200;
+      minimapCanvas.height = 150;
+      container.classList.remove('expanded');
+    }
+  }
 });
 window.addEventListener('keyup', (e) => {
   if (e.key === 'w' || e.key === 'W') keys.up = false;
@@ -1532,25 +1553,6 @@ function drawMinimap() {
     minimapCtx.stroke();
   }
 
-  // Draw ice blocks as small dots
-  for (const b of iceBlocks) {
-    minimapCtx.fillStyle = 'rgba(150, 200, 240, 0.5)';
-    minimapCtx.beginPath();
-    minimapCtx.arc(b.x * scaleX, b.y * scaleY, Math.max(2, b.r * scaleX), 0, Math.PI * 2);
-    minimapCtx.fill();
-  }
-
-  // Draw mobs
-  for (const id in serverMobs) {
-    const m = serverMobs[id];
-    const zone = m.zone || 1;
-    const colors = { 1: '#66bb6a', 2: '#ffa726', 3: '#ef5350' };
-    minimapCtx.fillStyle = colors[zone] || '#66bb6a';
-    minimapCtx.beginPath();
-    minimapCtx.arc(m.x * scaleX, m.y * scaleY, 2, 0, Math.PI * 2);
-    minimapCtx.fill();
-  }
-
   // Draw other players
   for (const id in serverPlayers) {
     if (id === myId) continue;
@@ -1564,9 +1566,9 @@ function drawMinimap() {
 
   // Draw spawn point marker
   minimapCtx.strokeStyle = '#ffdd44';
-  minimapCtx.lineWidth = 1.5;
+  minimapCtx.lineWidth = minimapExpanded ? 2 : 1.5;
   const spx = spawnPoint.x * scaleX, spy = spawnPoint.y * scaleY;
-  const sr = 5;
+  const sr = minimapExpanded ? 10 : 5;
   minimapCtx.beginPath();
   for (let i = 0; i < 5; i++) {
     const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5;
