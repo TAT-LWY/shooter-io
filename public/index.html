@@ -122,15 +122,13 @@ canvas { display: block; cursor: crosshair; }
 #playBtnLoggedIn:hover { opacity: 0.9; }
 
 /* HUD */
-#hud {
+#minimap-container {
   position: fixed; top: 12px; right: 12px;
-  background: rgba(0,0,0,0.6); color: #fff; padding: 12px;
-  border-radius: 8px; font-size: 14px; min-width: 160px; z-index: 5;
+  background: rgba(0,0,0,0.5); padding: 4px;
+  border-radius: 8px; border: 1px solid rgba(100,180,255,0.3); z-index: 5;
 }
-#hud.hidden { display: none; }
-#hud h3 { margin-bottom: 6px; font-size: 14px; color: #f39c12; }
-.lb-row { display: flex; justify-content: space-between; padding: 2px 0; }
-.lb-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#minimap-container.hidden { display: none; }
+#minimap { display: block; border-radius: 6px; }
 
 #pingDisplay {
   position: fixed; top: 12px; left: 12px;
@@ -212,9 +210,8 @@ canvas { display: block; cursor: crosshair; }
   </div>
 </div>
 
-<div id="hud" class="hidden">
-  <h3>排行榜</h3>
-  <div id="leaderboard"></div>
+<div id="minimap-container" class="hidden">
+  <canvas id="minimap" width="200" height="150"></canvas>
 </div>
 
 <div id="pingDisplay" class="hidden">PING: --</div>
@@ -246,9 +243,10 @@ for (const [name, src] of Object.entries(CUSTOM_SKINS)) {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const menu = document.getElementById('menu');
-const hud = document.getElementById('hud');
+const hud = document.getElementById('minimap-container');
 const deathScreen = document.getElementById('death');
-const leaderboardEl = document.getElementById('leaderboard');
+const minimapCanvas = document.getElementById('minimap');
+const minimapCtx = minimapCanvas.getContext('2d');
 const pingDisplay = document.getElementById('pingDisplay');
 
 // Auth elements
@@ -1511,11 +1509,95 @@ function drawFloatingTexts() {
   }
 }
 
-function updateLeaderboard() {
-  const sorted = Object.values(serverPlayers).sort((a, b) => b.kills - a.kills).slice(0, 8);
-  leaderboardEl.innerHTML = sorted.map(p =>
-    `<div class="lb-row"><span class="lb-name" style="color:${p.color}">${p.name || 'Player'}</span><span>${p.kills}</span></div>`
-  ).join('');
+function drawMinimap() {
+  const mw = minimapCanvas.width, mh = minimapCanvas.height;
+  const scaleX = mw / mapW, scaleY = mh / mapH;
+
+  // Background
+  minimapCtx.fillStyle = 'rgba(20, 35, 50, 0.85)';
+  minimapCtx.fillRect(0, 0, mw, mh);
+
+  // Draw border shape
+  if (borderPoints.length > 2) {
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(borderPoints[0].x * scaleX, borderPoints[0].y * scaleY);
+    for (let i = 1; i < borderPoints.length; i++) {
+      minimapCtx.lineTo(borderPoints[i].x * scaleX, borderPoints[i].y * scaleY);
+    }
+    minimapCtx.closePath();
+    minimapCtx.fillStyle = 'rgba(60, 90, 120, 0.6)';
+    minimapCtx.fill();
+    minimapCtx.strokeStyle = 'rgba(100, 180, 255, 0.5)';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.stroke();
+  }
+
+  // Draw ice blocks as small dots
+  for (const b of iceBlocks) {
+    minimapCtx.fillStyle = 'rgba(150, 200, 240, 0.5)';
+    minimapCtx.beginPath();
+    minimapCtx.arc(b.x * scaleX, b.y * scaleY, Math.max(2, b.r * scaleX), 0, Math.PI * 2);
+    minimapCtx.fill();
+  }
+
+  // Draw mobs
+  for (const id in serverMobs) {
+    const m = serverMobs[id];
+    const zone = m.zone || 1;
+    const colors = { 1: '#66bb6a', 2: '#ffa726', 3: '#ef5350' };
+    minimapCtx.fillStyle = colors[zone] || '#66bb6a';
+    minimapCtx.beginPath();
+    minimapCtx.arc(m.x * scaleX, m.y * scaleY, 2, 0, Math.PI * 2);
+    minimapCtx.fill();
+  }
+
+  // Draw other players
+  for (const id in serverPlayers) {
+    if (id === myId) continue;
+    const p = serverPlayers[id];
+    if (!p.alive) continue;
+    minimapCtx.fillStyle = p.color || '#3498db';
+    minimapCtx.beginPath();
+    minimapCtx.arc(p.x * scaleX, p.y * scaleY, 3, 0, Math.PI * 2);
+    minimapCtx.fill();
+  }
+
+  // Draw spawn point marker
+  minimapCtx.strokeStyle = '#ffdd44';
+  minimapCtx.lineWidth = 1.5;
+  const spx = spawnPoint.x * scaleX, spy = spawnPoint.y * scaleY;
+  const sr = 5;
+  minimapCtx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * 4 * Math.PI) / 5;
+    const x = spx + Math.cos(a) * sr, y = spy + Math.sin(a) * sr;
+    if (i === 0) minimapCtx.moveTo(x, y); else minimapCtx.lineTo(x, y);
+  }
+  minimapCtx.closePath();
+  minimapCtx.stroke();
+
+  // Draw self (blinking)
+  const me = serverPlayers[myId];
+  const pos = localPlayer || (me ? { x: me.x, y: me.y } : null);
+  if (pos) {
+    const px = pos.x * scaleX, py = pos.y * scaleY;
+    // View cone
+    minimapCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(px, py);
+    const viewW = canvas.width * scaleX / 2, viewH = canvas.height * scaleY / 2;
+    minimapCtx.rect(px - viewW, py - viewH, viewW * 2, viewH * 2);
+    minimapCtx.fill();
+    // Player dot
+    const blink = Math.sin(Date.now() / 200) > 0;
+    minimapCtx.fillStyle = blink ? '#ffffff' : '#ffee00';
+    minimapCtx.beginPath();
+    minimapCtx.arc(px, py, 3.5, 0, Math.PI * 2);
+    minimapCtx.fill();
+    minimapCtx.strokeStyle = '#000';
+    minimapCtx.lineWidth = 0.8;
+    minimapCtx.stroke();
+  }
 }
 
 function render() {
@@ -1537,7 +1619,7 @@ function render() {
   if (me && localPlayer) {
     drawPlayer({ ...me, x: localPlayer.x, y: localPlayer.y, angle: getAngle() }, true);
   } else if (me) drawPlayer(me, true);
-  updateLeaderboard();
+  drawMinimap();
   drawSnowflakes();
   requestAnimationFrame(render);
 }
