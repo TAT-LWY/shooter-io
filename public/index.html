@@ -587,6 +587,19 @@ function clientIsInsideBorder(x, y) {
   return inside;
 }
 
+// Client-side ice block collision (same as server)
+function clientCollidesBlock(x, y, radius) {
+  for (const b of iceBlocks) {
+    const dx = x - b.x, dy = y - b.y;
+    if (dx * dx + dy * dy < (radius + b.r) * (radius + b.r)) return true;
+  }
+  return false;
+}
+
+function clientCanMove(x, y) {
+  return clientIsInsideBorder(x, y) && !clientCollidesBlock(x, y, PLAYER_RADIUS);
+}
+
 function applyMovement(obj, inputKeys) {
   let dx = 0, dy = 0;
   if (inputKeys.up) dy -= 1;
@@ -600,15 +613,12 @@ function applyMovement(obj, inputKeys) {
     const newX = obj.x + mvx;
     const newY = obj.y + mvy;
 
-    if (clientIsInsideBorder(newX, newY)) {
-      // New position is inside border, move normally
+    if (clientCanMove(newX, newY)) {
       obj.x = newX;
       obj.y = newY;
-    } else if (clientIsInsideBorder(newX, obj.y)) {
-      // Only X movement is safe
+    } else if (clientCanMove(newX, obj.y)) {
       obj.x = newX;
-    } else if (clientIsInsideBorder(obj.x, newY)) {
-      // Only Y movement is safe
+    } else if (clientCanMove(obj.x, newY)) {
       obj.y = newY;
     }
     // else: both directions blocked, don't move
