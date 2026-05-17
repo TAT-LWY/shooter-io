@@ -16,110 +16,111 @@ canvas { display: block; cursor: crosshair; }
 #menu {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.85);
-  z-index: 10;
+  background: linear-gradient(180deg, #1a2a3a 0%, #0d1822 50%, #0a1018 100%);
+  z-index: 10; overflow: hidden;
 }
 #menu.hidden { display: none; }
-#menuBox { text-align: center; color: #fff; width: 320px; }
-#menuBox h1 {
-  font-size: 48px; margin-bottom: 8px;
-  background: linear-gradient(135deg, #e74c3c, #f39c12);
+
+/* Snow particles in menu background via CSS */
+#menuBg {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+}
+
+/* Top-left icon buttons */
+#menuIcons {
+  position: absolute; top: 20px; left: 20px;
+  display: flex; gap: 10px; z-index: 2;
+}
+.menu-icon {
+  width: 44px; height: 44px; border: 2px solid rgba(100,180,255,0.3);
+  border-radius: 8px; background: rgba(20,40,60,0.6);
+  color: rgba(180,220,255,0.7); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.menu-icon:hover { border-color: rgba(100,180,255,0.7); background: rgba(30,60,90,0.7); color: #fff; }
+.menu-icon.empty { border-color: rgba(100,180,255,0.15); color: rgba(100,180,255,0.2); cursor: default; }
+.menu-icon.empty:hover { border-color: rgba(100,180,255,0.15); background: rgba(20,40,60,0.6); color: rgba(100,180,255,0.2); }
+
+/* Center content */
+#menuBox {
+  text-align: center; color: #fff; z-index: 2; position: relative;
+}
+#menuTitle {
+  font-size: 72px; font-weight: 900; letter-spacing: 8px; margin-bottom: 40px;
+  background: linear-gradient(180deg, #e8f4ff 0%, #80ccff 40%, #4099dd 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-#menuBox .subtitle { color: #888; margin-bottom: 24px; }
-
-/* Auth forms */
-.auth-section { margin-bottom: 20px; }
-.auth-tabs {
-  display: flex; margin-bottom: 16px; border-radius: 8px; overflow: hidden;
-  border: 1px solid #333;
-}
-.auth-tab {
-  flex: 1; padding: 10px; background: #222; color: #888;
-  border: none; cursor: pointer; font-size: 14px; font-weight: bold;
-  transition: all 0.2s;
-}
-.auth-tab.active { background: #e74c3c; color: #fff; }
-.auth-tab:hover:not(.active) { background: #2a2a2a; }
-
-.auth-form { display: none; }
-.auth-form.active { display: block; }
-
-.input-group { margin-bottom: 12px; }
-.input-group input {
-  width: 100%; padding: 12px 16px; font-size: 16px;
-  border: 2px solid #333; border-radius: 8px;
-  background: #1a1a1a; color: #fff; outline: none;
-  transition: border-color 0.2s;
-}
-.input-group input:focus { border-color: #e74c3c; }
-.input-group input::placeholder { color: #555; }
-
-.auth-btn {
-  width: 100%; padding: 12px; font-size: 16px; font-weight: bold;
-  border: none; border-radius: 8px; cursor: pointer;
-  color: #fff; transition: opacity 0.2s;
-}
-.auth-btn:hover { opacity: 0.9; }
-.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-#loginBtn { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-#registerBtn { background: linear-gradient(135deg, #2ecc71, #27ae60); }
-
-.auth-error {
-  color: #e74c3c; font-size: 13px; margin-top: 8px;
-  min-height: 20px;
+  text-shadow: none; filter: drop-shadow(0 0 30px rgba(80,180,255,0.3));
+  font-family: 'Arial Black', 'Impact', sans-serif;
 }
 
-.divider {
-  display: flex; align-items: center; margin: 16px 0; color: #555;
+/* Name + Start row */
+#playRow {
+  display: flex; gap: 12px; align-items: center; justify-content: center;
 }
-.divider::before, .divider::after {
-  content: ''; flex: 1; height: 1px; background: #333;
+#nameInput {
+  width: 280px; padding: 14px 20px; font-size: 18px;
+  border: 2px solid rgba(100,180,255,0.3); border-radius: 10px;
+  background: rgba(15,30,50,0.8); color: #fff; outline: none;
+  text-align: center; letter-spacing: 1px;
+  transition: border-color 0.3s;
 }
-.divider span { padding: 0 12px; font-size: 13px; }
+#nameInput:focus { border-color: rgba(100,180,255,0.7); }
+#nameInput::placeholder { color: rgba(120,160,200,0.5); }
+#startBtn {
+  padding: 14px 32px; font-size: 18px; font-weight: bold;
+  border: 2px solid rgba(100,180,255,0.5); border-radius: 10px;
+  background: rgba(30,80,140,0.6); color: #e0f0ff;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 2px;
+  white-space: nowrap;
+}
+#startBtn:hover { background: rgba(40,100,180,0.8); border-color: rgba(120,200,255,0.8); color: #fff; }
 
-/* Guest play */
-#guestSection { margin-top: 8px; }
-#guestNameInput {
-  padding: 10px 16px; font-size: 15px; border: 2px solid #333;
-  border-radius: 8px; background: #1a1a1a; color: #fff; outline: none;
-  width: 100%; text-align: center; margin-bottom: 10px;
+/* Modal overlays for settings/account */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 20;
+  align-items: center; justify-content: center;
 }
-#guestNameInput:focus { border-color: #f39c12; }
-#guestPlayBtn {
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: #1a2a3a; border: 1px solid rgba(100,180,255,0.3);
+  border-radius: 12px; padding: 24px; color: #fff; width: 340px;
+}
+.modal-box h3 { font-size: 18px; margin-bottom: 16px; color: #80ccff; }
+.modal-close {
+  float: right; background: none; border: none; color: #888;
+  font-size: 20px; cursor: pointer; padding: 0 4px;
+}
+.modal-close:hover { color: #fff; }
+.modal-input {
+  width: 100%; padding: 10px 14px; font-size: 15px;
+  border: 2px solid rgba(100,180,255,0.3); border-radius: 8px;
+  background: rgba(10,20,35,0.8); color: #fff; outline: none;
+  margin-bottom: 10px;
+}
+.modal-input:focus { border-color: rgba(100,180,255,0.6); }
+.modal-input::placeholder { color: rgba(120,160,200,0.4); }
+.modal-btn {
   width: 100%; padding: 10px; font-size: 15px; font-weight: bold;
-  border: 2px solid #555; border-radius: 8px; background: transparent;
-  color: #888; cursor: pointer; transition: all 0.2s;
-}
-#guestPlayBtn:hover { border-color: #f39c12; color: #f39c12; }
-
-/* User info when logged in */
-#userInfo {
-  display: none; margin-bottom: 16px; text-align: left;
-  background: #1a1a1a; padding: 14px; border-radius: 8px;
-  border: 1px solid #333;
-}
-#userInfo .welcome {
-  font-size: 16px; color: #f39c12; margin-bottom: 8px;
-}
-#userInfo .stat-row {
-  display: flex; justify-content: space-between; padding: 3px 0;
-  color: #aaa; font-size: 13px;
-}
-#userInfo .stat-val { color: #fff; font-weight: bold; }
-#logoutBtn {
-  margin-top: 10px; padding: 6px 12px; font-size: 12px;
-  border: 1px solid #555; border-radius: 4px; background: transparent;
-  color: #888; cursor: pointer;
-}
-#logoutBtn:hover { border-color: #e74c3c; color: #e74c3c; }
-#playBtnLoggedIn {
-  width: 100%; padding: 14px; font-size: 18px; font-weight: bold;
   border: none; border-radius: 8px; cursor: pointer; color: #fff;
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  margin-top: 12px;
+  margin-bottom: 8px; transition: opacity 0.2s;
 }
-#playBtnLoggedIn:hover { opacity: 0.9; }
+.modal-btn:hover { opacity: 0.9; }
+.modal-btn.primary { background: linear-gradient(135deg, #2288cc, #1a6699); }
+.modal-btn.success { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+.modal-btn.danger { background: none; border: 1px solid #555; color: #888; font-size: 13px; }
+.modal-btn.danger:hover { border-color: #e74c3c; color: #e74c3c; }
+.modal-error { color: #e74c3c; font-size: 13px; margin-top: 4px; min-height: 18px; }
+.modal-tabs { display: flex; gap: 0; margin-bottom: 14px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(100,180,255,0.2); }
+.modal-tab { flex: 1; padding: 8px; background: rgba(20,40,60,0.6); color: #888; border: none; cursor: pointer; font-size: 14px; font-weight: bold; }
+.modal-tab.active { background: rgba(30,80,140,0.7); color: #e0f0ff; }
+.modal-form { display: none; }
+.modal-form.active { display: block; }
+/* User info in account modal */
+.user-stats { margin-bottom: 12px; }
+.user-stats .stat-row { display: flex; justify-content: space-between; padding: 4px 0; color: #aaa; font-size: 13px; }
+.user-stats .stat-val { color: #fff; font-weight: bold; }
 
 /* HUD */
 #minimap-container {
@@ -159,59 +160,72 @@ canvas { display: block; cursor: crosshair; }
 <body>
 
 <div id="menu">
+  <div id="menuBg"></div>
+
+  <!-- Top-left icon buttons -->
+  <div id="menuIcons">
+    <div class="menu-icon" id="iconSettings" title="Settings">&#9881;</div>
+    <div class="menu-icon" id="iconAccount" title="Account">&#9786;</div>
+    <div class="menu-icon empty">&#8203;</div>
+    <div class="menu-icon empty">&#8203;</div>
+  </div>
+
+  <!-- Center content -->
   <div id="menuBox">
-    <h1>SHOOTER.IO</h1>
-    <p class="subtitle">多人在线射击</p>
-
-    <!-- User info (shown when logged in) -->
-    <div id="userInfo">
-      <div class="welcome">欢迎回来, <span id="welcomeName"></span></div>
-      <div class="stat-row"><span>总击杀</span><span class="stat-val" id="statKills">0</span></div>
-      <div class="stat-row"><span>总死亡</span><span class="stat-val" id="statDeaths">0</span></div>
-      <div class="stat-row"><span>K/D</span><span class="stat-val" id="statKD">0.00</span></div>
-      <div class="stat-row"><span>最高连杀</span><span class="stat-val" id="statStreak">0</span></div>
-      <div class="stat-row"><span>游戏场次</span><span class="stat-val" id="statGames">0</span></div>
-      <button id="logoutBtn">退出登录</button>
-      <button id="playBtnLoggedIn">开始游戏</button>
+    <div id="menuTitle">AAAMIU</div>
+    <div id="playRow">
+      <input type="text" id="nameInput" placeholder="Player Name" maxlength="12">
+      <button id="startBtn">Start</button>
     </div>
+  </div>
 
-    <!-- Auth section (shown when not logged in) -->
-    <div id="authSection" class="auth-section">
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tabLogin">登录</button>
-        <button class="auth-tab" id="tabRegister">注册</button>
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="document.getElementById('settingsModal').classList.remove('active')">&times;</button>
+      <h3>Settings</h3>
+      <p style="color:#888;font-size:14px;">Coming soon...</p>
+    </div>
+  </div>
+
+  <!-- Account Modal -->
+  <div class="modal-overlay" id="accountModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="document.getElementById('accountModal').classList.remove('active')">&times;</button>
+      <h3>Account</h3>
+
+      <!-- Not logged in -->
+      <div id="authForms">
+        <div class="modal-tabs">
+          <button class="modal-tab active" id="tabLogin">Login</button>
+          <button class="modal-tab" id="tabRegister">Register</button>
+        </div>
+        <div class="modal-form active" id="formLogin">
+          <input class="modal-input" type="text" id="loginUsername" placeholder="Username" maxlength="12" autocomplete="username">
+          <input class="modal-input" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+          <button class="modal-btn primary" id="loginBtn">Login</button>
+          <div class="modal-error" id="loginError"></div>
+        </div>
+        <div class="modal-form" id="formRegister">
+          <input class="modal-input" type="text" id="regUsername" placeholder="Username (2-12 chars)" maxlength="12" autocomplete="username">
+          <input class="modal-input" type="password" id="regPassword" placeholder="Password (6+ chars)" autocomplete="new-password">
+          <input class="modal-input" type="password" id="regPassword2" placeholder="Confirm Password" autocomplete="new-password">
+          <button class="modal-btn success" id="registerBtn">Register</button>
+          <div class="modal-error" id="regError"></div>
+        </div>
       </div>
 
-      <div class="auth-form active" id="formLogin">
-        <div class="input-group">
-          <input type="text" id="loginUsername" placeholder="用户名" maxlength="12" autocomplete="username">
+      <!-- Logged in -->
+      <div id="userInfo" style="display:none;">
+        <div style="color:#80ccff;font-size:16px;margin-bottom:12px;">Welcome, <span id="welcomeName"></span></div>
+        <div class="user-stats">
+          <div class="stat-row"><span>Kills</span><span class="stat-val" id="statKills">0</span></div>
+          <div class="stat-row"><span>Deaths</span><span class="stat-val" id="statDeaths">0</span></div>
+          <div class="stat-row"><span>K/D</span><span class="stat-val" id="statKD">0.00</span></div>
+          <div class="stat-row"><span>Best Streak</span><span class="stat-val" id="statStreak">0</span></div>
+          <div class="stat-row"><span>Games</span><span class="stat-val" id="statGames">0</span></div>
         </div>
-        <div class="input-group">
-          <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
-        </div>
-        <button class="auth-btn" id="loginBtn">登录</button>
-        <div class="auth-error" id="loginError"></div>
-      </div>
-
-      <div class="auth-form" id="formRegister">
-        <div class="input-group">
-          <input type="text" id="regUsername" placeholder="用户名 (2-12字符)" maxlength="12" autocomplete="username">
-        </div>
-        <div class="input-group">
-          <input type="password" id="regPassword" placeholder="密码 (至少6位)" autocomplete="new-password">
-        </div>
-        <div class="input-group">
-          <input type="password" id="regPassword2" placeholder="确认密码" autocomplete="new-password">
-        </div>
-        <button class="auth-btn" id="registerBtn">注册</button>
-        <div class="auth-error" id="regError"></div>
-      </div>
-
-      <div class="divider"><span>或者</span></div>
-
-      <div id="guestSection">
-        <input type="text" id="guestNameInput" placeholder="游客名字" maxlength="12">
-        <button id="guestPlayBtn">游客模式</button>
+        <button class="modal-btn danger" id="logoutBtn">Logout</button>
       </div>
     </div>
   </div>
@@ -257,7 +271,7 @@ const minimapCtx = minimapCanvas.getContext('2d');
 const pingDisplay = document.getElementById('pingDisplay');
 
 // Auth elements
-const authSection = document.getElementById('authSection');
+const authForms = document.getElementById('authForms');
 const userInfo = document.getElementById('userInfo');
 const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
@@ -396,11 +410,13 @@ document.getElementById('logoutBtn').onclick = () => {
   currentUser = null;
   localStorage.removeItem('authToken');
   userInfo.style.display = 'none';
-  authSection.style.display = 'block';
+  authForms.style.display = 'block';
+  document.getElementById('nameInput').value = '';
+  document.getElementById('nameInput').placeholder = 'Player Name';
 };
 
 function showUserInfo(user) {
-  authSection.style.display = 'none';
+  authForms.style.display = 'none';
   userInfo.style.display = 'block';
   document.getElementById('welcomeName').textContent = user.username;
   document.getElementById('statKills').textContent = user.stats.kills;
@@ -409,6 +425,8 @@ function showUserInfo(user) {
   document.getElementById('statKD').textContent = kd;
   document.getElementById('statStreak').textContent = user.stats.bestKillStreak;
   document.getElementById('statGames').textContent = user.stats.gamesPlayed;
+  // Pre-fill name input with username
+  document.getElementById('nameInput').value = user.username;
 }
 
 // Check saved token on load
@@ -541,19 +559,25 @@ function startGame(playerName) {
   setInterval(() => { if (socket) socket.emit('ping_check', Date.now()); }, 2000);
 }
 
-// Play button handlers
-document.getElementById('playBtnLoggedIn').onclick = () => {
-  startGame(currentUser ? currentUser.username : 'Player');
-};
-document.getElementById('guestPlayBtn').onclick = () => {
-  const name = document.getElementById('guestNameInput').value.trim() || 'Player';
+// Start button & name input
+document.getElementById('startBtn').onclick = () => {
+  const name = document.getElementById('nameInput').value.trim() || (currentUser ? currentUser.username : 'Player');
   startGame(name);
 };
-document.getElementById('guestNameInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const name = document.getElementById('guestNameInput').value.trim() || 'Player';
-    startGame(name);
-  }
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('startBtn').click();
+});
+
+// Icon buttons
+document.getElementById('iconSettings').onclick = () => {
+  document.getElementById('settingsModal').classList.add('active');
+};
+document.getElementById('iconAccount').onclick = () => {
+  document.getElementById('accountModal').classList.add('active');
+};
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.onclick = (e) => { if (e.target === m) m.classList.remove('active'); };
 });
 
 // Enter key on auth forms
