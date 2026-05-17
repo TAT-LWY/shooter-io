@@ -714,44 +714,53 @@ function drawGrid() {
 function drawBorder() {
   if (borderPoints.length < 3) return;
   ctx.save();
+  const bp = borderPoints;
+
+  // Build the polygon path (straight lines matching server collision)
+  function traceBorderPath() {
+    ctx.moveTo(bp[0].x - camera.x, bp[0].y - camera.y);
+    for (let i = 1; i < bp.length; i++) {
+      ctx.lineTo(bp[i].x - camera.x, bp[i].y - camera.y);
+    }
+    ctx.closePath();
+  }
 
   // Draw the area outside the border as darker
-  // First draw a huge rect, then cut out the border shape
-  ctx.fillStyle = 'rgba(50, 80, 100, 0.4)';
+  ctx.fillStyle = 'rgba(40, 65, 85, 0.45)';
   ctx.beginPath();
   ctx.rect(-camera.x - 500, -camera.y - 500, mapW + 1000, mapH + 1000);
-  // Cut out the playable area (reverse winding)
-  ctx.moveTo(borderPoints[0].x - camera.x, borderPoints[0].y - camera.y);
-  for (let i = borderPoints.length - 1; i >= 0; i--) {
-    ctx.lineTo(borderPoints[i].x - camera.x, borderPoints[i].y - camera.y);
+  // Cut out playable area (reverse winding)
+  ctx.moveTo(bp[0].x - camera.x, bp[0].y - camera.y);
+  for (let i = bp.length - 1; i >= 0; i--) {
+    ctx.lineTo(bp[i].x - camera.x, bp[i].y - camera.y);
   }
   ctx.closePath();
   ctx.fill();
 
-  // Draw the border line with smooth curves
+  // Draw border line - straight segments matching actual collision
   ctx.beginPath();
-  const bp = borderPoints;
-  ctx.moveTo(bp[0].x - camera.x, bp[0].y - camera.y);
-  for (let i = 0; i < bp.length; i++) {
-    const curr = bp[i];
-    const next = bp[(i + 1) % bp.length];
-    const cpx = (curr.x + next.x) / 2 - camera.x;
-    const cpy = (curr.y + next.y) / 2 - camera.y;
-    ctx.quadraticCurveTo(curr.x - camera.x, curr.y - camera.y, cpx, cpy);
-  }
-  ctx.closePath();
+  traceBorderPath();
 
-  // Glow
+  // Outer glow
   ctx.shadowColor = '#4fc3f7';
-  ctx.shadowBlur = 20;
-  ctx.strokeStyle = '#4fc3f7';
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = 'rgba(79, 195, 247, 0.8)';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Inner glow
+  // Main line
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = 'rgba(180, 230, 255, 0.5)';
-  ctx.lineWidth = 1;
+  ctx.beginPath();
+  traceBorderPath();
+  ctx.strokeStyle = 'rgba(130, 220, 255, 0.9)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Inner soft glow
+  ctx.beginPath();
+  traceBorderPath();
+  ctx.strokeStyle = 'rgba(200, 240, 255, 0.3)';
+  ctx.lineWidth = 6;
   ctx.stroke();
 
   ctx.restore();

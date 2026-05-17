@@ -201,10 +201,11 @@ function updateMobs() {
               target.sessionDeaths++;
               target.killStreak = 0;
               setTimeout(() => {
+                const sp = safeSpawnPos();
                 target.hp = MAX_HP;
                 target.alive = true;
-                target.x = Math.random() * (MAP_W - 200) + 100;
-                target.y = Math.random() * (MAP_H - 200) + 100;
+                target.x = sp.x;
+                target.y = sp.y;
               }, RESPAWN_TIME);
             }
           }
@@ -323,6 +324,46 @@ function isInsideBorder(x, y) {
   return inside;
 }
 
+// Find closest point on border polygon edge and push player inside
+function pushInsideBorder(px, py, radius) {
+  const n = MAP_BORDER_POINTS.length;
+  let closestDist = Infinity;
+  let closestX = px, closestY = py;
+  let edgeNx = 0, edgeNy = 0;
+
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = MAP_BORDER_POINTS[i].x, ay = MAP_BORDER_POINTS[i].y;
+    const bx = MAP_BORDER_POINTS[j].x, by = MAP_BORDER_POINTS[j].y;
+    // Project point onto segment
+    const abx = bx - ax, aby = by - ay;
+    const abLen2 = abx * abx + aby * aby;
+    if (abLen2 === 0) continue;
+    let t = ((px - ax) * abx + (py - ay) * aby) / abLen2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t * abx, cy = ay + t * aby;
+    const dx = px - cx, dy = py - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closestX = cx;
+      closestY = cy;
+      // Inward normal (toward center)
+      const mx = MAP_W / 2 - (ax + bx) / 2;
+      const my = MAP_H / 2 - (ay + by) / 2;
+      const nl = Math.sqrt(mx * mx + my * my) || 1;
+      edgeNx = mx / nl;
+      edgeNy = my / nl;
+    }
+  }
+
+  // Place player on the border edge + radius inward
+  return {
+    x: closestX + edgeNx * (radius + 1),
+    y: closestY + edgeNy * (radius + 1)
+  };
+}
+
 // Ice lakes (circles where players slide)
 const iceLakes = [
   { x: 700, y: 700, r: 150 },
@@ -359,6 +400,17 @@ function bulletHitsBlock(x, y) {
   return false;
 }
 
+// Safe spawn - ensure inside border and not in blocks
+function safeSpawnPos() {
+  for (let tries = 0; tries < 50; tries++) {
+    const x = Math.random() * (MAP_W - 400) + 200;
+    const y = Math.random() * (MAP_H - 400) + 200;
+    if (isInsideBorder(x, y) && !collidesWithBlock(x, y, PLAYER_RADIUS)) return { x, y };
+  }
+  // Fallback: center of map
+  return { x: MAP_W / 2, y: MAP_H / 2 };
+}
+
 const COLORS = [
   '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
   '#1abc9c', '#e67e22', '#ec407a', '#26c6da', '#ff7043'
@@ -389,10 +441,11 @@ async function savePlayerStats(player) {
 }
 
 io.on('connection', (socket) => {
+  const spawnPos = safeSpawnPos();
   const player = {
     id: socket.id,
-    x: Math.random() * (MAP_W - 200) + 100,
-    y: Math.random() * (MAP_H - 200) + 100,
+    x: spawnPos.x,
+    y: spawnPos.y,
     angle: 0,
     hp: MAX_HP,
     kills: 0,
@@ -550,15 +603,14 @@ function applyInput(p) {
     p.vy = 0;
   }
 
-  // Keep inside irregular border
+  // Keep inside irregular border - smooth slide along edge
   if (!isInsideBorder(p.x, p.y)) {
-    // Push back toward center
-    const cx = MAP_W / 2, cy = MAP_H / 2;
-    const dx = cx - p.x, dy = cy - p.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    p.x += (dx / len) * 5;
-    p.y += (dy / len) * 5;
-    p.vx = 0; p.vy = 0;
+    const fix = pushInsideBorder(p.x, p.y, PLAYER_RADIUS);
+    p.x = fix.x;
+    p.y = fix.y;
+    // Dampen velocity instead of killing it (allows sliding)
+    p.vx *= 0.3;
+    p.vy *= 0.3;
   }
 
   p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));
@@ -617,10 +669,11 @@ function tick() {
             }
           }
           setTimeout(() => {
+            const sp = safeSpawnPos();
             p.hp = MAX_HP;
             p.alive = true;
-            p.x = Math.random() * (MAP_W - 200) + 100;
-            p.y = Math.random() * (MAP_H - 200) + 100;
+            p.x = sp.x;
+            p.y = sp.y;
           }, RESPAWN_TIME);
         }
         break;
