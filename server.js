@@ -588,10 +588,10 @@ function applyInput(p) {
   const v = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
   if (v > maxV) { p.vx = (p.vx / v) * maxV; p.vy = (p.vy / v) * maxV; }
 
-  const newX = p.x + p.vx;
-  const newY = p.y + p.vy;
+  let newX = p.x + p.vx;
+  let newY = p.y + p.vy;
 
-  // Check collision with ice blocks
+  // Check collision with ice blocks (axis-separated)
   if (!collidesWithBlock(newX, p.y, PLAYER_RADIUS)) {
     p.x = newX;
   } else {
@@ -603,14 +603,48 @@ function applyInput(p) {
     p.vy = 0;
   }
 
-  // Keep inside irregular border - smooth slide along edge
+  // Keep inside irregular border - pre-check to prevent jitter
   if (!isInsideBorder(p.x, p.y)) {
+    // Already outside (shouldn't happen often), snap back
     const fix = pushInsideBorder(p.x, p.y, PLAYER_RADIUS);
     p.x = fix.x;
     p.y = fix.y;
-    // Dampen velocity instead of killing it (allows sliding)
-    p.vx *= 0.3;
-    p.vy *= 0.3;
+    p.vx = 0;
+    p.vy = 0;
+  } else {
+    // Check if NEXT frame's movement would push outside
+    // Use a slightly inward check to create a buffer zone
+    const checkX = p.x + p.vx;
+    const checkY = p.y + p.vy;
+    if (!isInsideBorder(checkX, checkY)) {
+      // Find the closest border edge to slide along
+      const n = MAP_BORDER_POINTS.length;
+      let closestDist = Infinity, edgeDx = 0, edgeDy = 0;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const ax = MAP_BORDER_POINTS[i].x, ay = MAP_BORDER_POINTS[i].y;
+        const bx = MAP_BORDER_POINTS[j].x, by = MAP_BORDER_POINTS[j].y;
+        const abx = bx - ax, aby = by - ay;
+        const abLen2 = abx * abx + aby * aby;
+        if (abLen2 === 0) continue;
+        let t = ((p.x - ax) * abx + (p.y - ay) * aby) / abLen2;
+        t = Math.max(0, Math.min(1, t));
+        const cx = ax + t * abx, cy = ay + t * aby;
+        const ddx = p.x - cx, ddy = p.y - cy;
+        const dist = ddx * ddx + ddy * ddy;
+        if (dist < closestDist) {
+          closestDist = dist;
+          // Edge tangent direction (normalized)
+          const eLen = Math.sqrt(abLen2);
+          edgeDx = abx / eLen;
+          edgeDy = aby / eLen;
+        }
+      }
+      // Project velocity onto the edge tangent (slide along border)
+      const dot = p.vx * edgeDx + p.vy * edgeDy;
+      p.vx = edgeDx * dot * 0.7;
+      p.vy = edgeDy * dot * 0.7;
+    }
   }
 
   p.x = Math.max(PLAYER_RADIUS, Math.min(MAP_W - PLAYER_RADIUS, p.x));
