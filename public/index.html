@@ -1540,16 +1540,20 @@ function drawMinimap() {
 
   // Draw border shape
   if (borderPoints.length > 2) {
+    const bp = borderPoints;
     minimapCtx.beginPath();
-    minimapCtx.moveTo(borderPoints[0].x * scaleX, borderPoints[0].y * scaleY);
-    for (let i = 1; i < borderPoints.length; i++) {
-      minimapCtx.lineTo(borderPoints[i].x * scaleX, borderPoints[i].y * scaleY);
+    minimapCtx.moveTo(bp[0].x * scaleX, bp[0].y * scaleY);
+    for (let i = 0; i < bp.length; i++) {
+      const curr = bp[i], next = bp[(i + 1) % bp.length];
+      const cpx = (curr.x + next.x) / 2 * scaleX;
+      const cpy = (curr.y + next.y) / 2 * scaleY;
+      minimapCtx.quadraticCurveTo(curr.x * scaleX, curr.y * scaleY, cpx, cpy);
     }
     minimapCtx.closePath();
-    minimapCtx.fillStyle = 'rgba(60, 90, 120, 0.6)';
+    minimapCtx.fillStyle = 'rgba(50, 80, 110, 0.7)';
     minimapCtx.fill();
-    minimapCtx.strokeStyle = 'rgba(100, 180, 255, 0.5)';
-    minimapCtx.lineWidth = 1;
+    minimapCtx.strokeStyle = 'rgba(100, 180, 255, 0.6)';
+    minimapCtx.lineWidth = minimapExpanded ? 2 : 1.5;
     minimapCtx.stroke();
   }
 
@@ -1578,26 +1582,23 @@ function drawMinimap() {
   minimapCtx.closePath();
   minimapCtx.stroke();
 
-  // Draw self (blinking)
+  // Draw self
   const me = serverPlayers[myId];
   const pos = localPlayer || (me ? { x: me.x, y: me.y } : null);
   if (pos) {
     const px = pos.x * scaleX, py = pos.y * scaleY;
-    // View cone
-    minimapCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    minimapCtx.beginPath();
-    minimapCtx.moveTo(px, py);
-    const viewW = canvas.width * scaleX / 2, viewH = canvas.height * scaleY / 2;
-    minimapCtx.rect(px - viewW, py - viewH, viewW * 2, viewH * 2);
-    minimapCtx.fill();
+    const dotR = minimapExpanded ? 5 : 3;
+    // Glow
+    minimapCtx.shadowColor = '#ffee00';
+    minimapCtx.shadowBlur = minimapExpanded ? 10 : 6;
     // Player dot
-    const blink = Math.sin(Date.now() / 200) > 0;
-    minimapCtx.fillStyle = blink ? '#ffffff' : '#ffee00';
+    minimapCtx.fillStyle = '#ffee00';
     minimapCtx.beginPath();
-    minimapCtx.arc(px, py, 3.5, 0, Math.PI * 2);
+    minimapCtx.arc(px, py, dotR, 0, Math.PI * 2);
     minimapCtx.fill();
-    minimapCtx.strokeStyle = '#000';
-    minimapCtx.lineWidth = 0.8;
+    minimapCtx.shadowBlur = 0;
+    minimapCtx.strokeStyle = '#fff';
+    minimapCtx.lineWidth = minimapExpanded ? 1.5 : 1;
     minimapCtx.stroke();
   }
 }
