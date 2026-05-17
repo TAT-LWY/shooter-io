@@ -20,8 +20,8 @@ app.use('/api/auth', authRouter);
 // Init database
 initDB();
 
-const MAP_W = 3000;
-const MAP_H = 3000;
+const MAP_W = 8000;
+const MAP_H = 6000;
 const TICK_RATE = 60;
 const PLAYER_SPEED = 4;
 const BULLET_SPEED = 12;
@@ -42,20 +42,40 @@ let mobIdCounter = 0;
 let serverTick = 0;
 let stateTick = 0;
 
-// ─── Mob System ───
+// ─── Spawn Point (star on map - top right area) ───
+const SPAWN_POINT = { x: 6800, y: 900 };
+
+// ─── Mob System - Tiered by depth ───
 const MOB_TYPES = {
+  // Zone 1 - Near spawn (easy)
   wolf: {
     name: '冰晶狼',
-    hp: 80,
-    speed: 2.5,
-    radius: 20,
+    hp: 60,
+    speed: 2.2,
+    radius: 18,
     color: '#a0b0c0',
-    aggroRange: 300,
-    damage: 8,
-    attackCooldown: 800, // melee attack ms
+    aggroRange: 250,
+    damage: 6,
+    attackCooldown: 1000,
     xpReward: 1,
-    healReward: 15,
-    respawnTime: 15000
+    healReward: 10,
+    respawnTime: 12000,
+    zone: 1
+  },
+  // Zone 2 - Mid area
+  wolf_alpha: {
+    name: '寒冰头狼',
+    hp: 120,
+    speed: 2.8,
+    radius: 22,
+    color: '#7090b0',
+    aggroRange: 350,
+    damage: 12,
+    attackCooldown: 700,
+    xpReward: 2,
+    healReward: 20,
+    respawnTime: 18000,
+    zone: 2
   },
   golem: {
     name: '冰霜巨人',
@@ -65,33 +85,79 @@ const MOB_TYPES = {
     color: '#5599cc',
     aggroRange: 400,
     damage: 15,
-    attackCooldown: 2000, // shoots ice bolt
+    attackCooldown: 2000,
     shootRange: 350,
     bulletSpeed: 8,
     xpReward: 3,
-    healReward: 35,
-    respawnTime: 30000
+    healReward: 30,
+    respawnTime: 25000,
+    zone: 2
+  },
+  // Zone 3 - Deep area (hard)
+  frost_wyrm: {
+    name: '霜龙',
+    hp: 350,
+    speed: 1.8,
+    radius: 35,
+    color: '#3366aa',
+    aggroRange: 500,
+    damage: 25,
+    attackCooldown: 1500,
+    shootRange: 450,
+    bulletSpeed: 10,
+    xpReward: 5,
+    healReward: 50,
+    respawnTime: 40000,
+    zone: 3
+  },
+  ice_elemental: {
+    name: '冰元素',
+    hp: 250,
+    speed: 2.5,
+    radius: 24,
+    color: '#2255aa',
+    aggroRange: 450,
+    damage: 20,
+    attackCooldown: 600,
+    xpReward: 4,
+    healReward: 40,
+    respawnTime: 30000,
+    zone: 3
   }
 };
 
 const MOB_SPAWNS = [
-  // Wolves - scattered around map
-  { type: 'wolf', x: 300, y: 600 },
-  { type: 'wolf', x: 800, y: 400 },
-  { type: 'wolf', x: 1800, y: 600 },
-  { type: 'wolf', x: 2500, y: 500 },
-  { type: 'wolf', x: 400, y: 1600 },
-  { type: 'wolf', x: 1200, y: 2000 },
-  { type: 'wolf', x: 2000, y: 1800 },
-  { type: 'wolf', x: 2600, y: 2200 },
-  { type: 'wolf', x: 1000, y: 1200 },
-  { type: 'wolf', x: 2200, y: 1200 },
-  // Golems - fewer, near center and key areas
-  { type: 'golem', x: 750, y: 750 },
-  { type: 'golem', x: 2250, y: 750 },
-  { type: 'golem', x: 1500, y: 1500 },
-  { type: 'golem', x: 750, y: 2250 },
-  { type: 'golem', x: 2250, y: 2250 },
+  // Zone 1 - Near spawn (top right) - easy wolves
+  { type: 'wolf', x: 6200, y: 700 },
+  { type: 'wolf', x: 6500, y: 1200 },
+  { type: 'wolf', x: 5800, y: 900 },
+  { type: 'wolf', x: 5500, y: 600 },
+  { type: 'wolf', x: 6000, y: 1500 },
+  // Zone 2 - Mid area (center corridor + upper branch)
+  { type: 'wolf_alpha', x: 4500, y: 1200 },
+  { type: 'wolf_alpha', x: 4000, y: 1600 },
+  { type: 'wolf_alpha', x: 3500, y: 1000 },
+  { type: 'golem', x: 4200, y: 800 },
+  { type: 'golem', x: 3800, y: 1400 },
+  { type: 'wolf', x: 4800, y: 1000 },
+  { type: 'wolf', x: 3200, y: 1300 },
+  // Upper branch (peninsula)
+  { type: 'wolf_alpha', x: 2800, y: 1600 },
+  { type: 'golem', x: 2400, y: 1800 },
+  { type: 'wolf_alpha', x: 2000, y: 2000 },
+  // Zone 3 - Deep area (bottom left) - hard mobs
+  { type: 'frost_wyrm', x: 2500, y: 3500 },
+  { type: 'frost_wyrm', x: 1800, y: 4000 },
+  { type: 'ice_elemental', x: 3000, y: 3800 },
+  { type: 'ice_elemental', x: 2200, y: 3200 },
+  { type: 'ice_elemental', x: 3500, y: 4200 },
+  { type: 'wolf_alpha', x: 3200, y: 3000 },
+  { type: 'golem', x: 2800, y: 4300 },
+  // Left branch - hard
+  { type: 'frost_wyrm', x: 1200, y: 2800 },
+  { type: 'ice_elemental', x: 1500, y: 2500 },
+  { type: 'ice_elemental', x: 900, y: 3200 },
+  { type: 'golem', x: 1800, y: 2200 },
 ];
 
 function spawnMob(spawn) {
@@ -153,31 +219,31 @@ function updateMobs() {
       const dist = Math.sqrt(dx * dx + dy * dy);
       m.angle = Math.atan2(dy, dx);
 
-      if (m.type === 'golem' && type.shootRange && dist < type.shootRange) {
-        // Golem: shoot ice bolt
+      if (type.shootRange && dist < type.shootRange) {
+        // Ranged mob: shoot projectile
         const now = Date.now();
         if (now - m.lastAttack > type.attackCooldown) {
           m.lastAttack = now;
           const angle = m.angle;
+          const bulletColor = type.zone === 3 ? '#4466ff' : '#88ccff';
           bullets.push({
             id: bulletId++,
-            ownerId: id, // mob id
+            ownerId: id,
             x: m.x + Math.cos(angle) * (m.radius + 5),
             y: m.y + Math.sin(angle) * (m.radius + 5),
             vx: Math.cos(angle) * type.bulletSpeed,
             vy: Math.sin(angle) * type.bulletSpeed,
-            life: 50,
-            color: '#88ccff',
+            life: 60,
+            color: bulletColor,
             isMobBullet: true,
             damage: type.damage
           });
         }
-        // Move closer if far
         if (dist > type.shootRange * 0.6) {
           m.x += (dx / dist) * m.speed;
           m.y += (dy / dist) * m.speed;
         }
-      } else if (m.type === 'wolf') {
+      } else if (!type.shootRange) {
         // Wolf: chase and melee
         if (dist > m.radius + PLAYER_RADIUS + 5) {
           m.x += (dx / dist) * m.speed;
@@ -242,25 +308,33 @@ function updateMobs() {
 
 // Map obstacles - ice blocks (circles for irregular shapes)
 const iceBlocks = [
-  { x: 440, y: 440, r: 45 },
-  { x: 950, y: 330, r: 55 },
-  { x: 1550, y: 550, r: 50 },
-  { x: 2240, y: 440, r: 40 },
-  { x: 2640, y: 840, r: 48 },
-  { x: 540, y: 1260, r: 42 },
-  { x: 1270, y: 1040, r: 55 },
-  { x: 1840, y: 1340, r: 44 },
-  { x: 2450, y: 1540, r: 50 },
-  { x: 340, y: 2040, r: 46 },
-  { x: 840, y: 1860, r: 38 },
-  { x: 1550, y: 2240, r: 52 },
-  { x: 2140, y: 2040, r: 43 },
-  { x: 2540, y: 2440, r: 55 },
-  { x: 1040, y: 2540, r: 40 },
-  { x: 1440, y: 1440, r: 35 },
-  { x: 1590, y: 1590, r: 32 },
-  { x: 1380, y: 1640, r: 38 },
-  { x: 1650, y: 1380, r: 36 },
+  // Zone 1 - sparse, small
+  { x: 6100, y: 600, r: 35 },
+  { x: 5700, y: 1100, r: 40 },
+  { x: 6400, y: 1400, r: 38 },
+  // Zone 2 - medium density
+  { x: 4600, y: 900, r: 50 },
+  { x: 4100, y: 1100, r: 45 },
+  { x: 3600, y: 800, r: 55 },
+  { x: 4300, y: 1500, r: 42 },
+  { x: 3200, y: 1500, r: 48 },
+  { x: 5000, y: 1300, r: 40 },
+  // Upper branch
+  { x: 2600, y: 1700, r: 45 },
+  { x: 2100, y: 1900, r: 50 },
+  { x: 1700, y: 2100, r: 42 },
+  // Zone 3 - dense, large
+  { x: 2800, y: 3200, r: 60 },
+  { x: 2200, y: 3600, r: 55 },
+  { x: 3200, y: 3800, r: 50 },
+  { x: 1600, y: 3400, r: 48 },
+  { x: 3500, y: 4000, r: 55 },
+  { x: 2500, y: 4200, r: 52 },
+  { x: 1900, y: 4400, r: 45 },
+  // Left branch
+  { x: 1300, y: 2600, r: 50 },
+  { x: 900, y: 3000, r: 55 },
+  { x: 1100, y: 3400, r: 48 },
 ];
 
 // Generate irregular polygon vertices for each ice block (for client rendering)
@@ -294,21 +368,74 @@ for (const block of iceBlocks) {
   block.shape = pts;
 }
 
-// Generate irregular map border (wavy polygon)
-const MAP_BORDER_POINTS = [];
-const BORDER_SEGMENTS = 60;
-const BORDER_MARGIN = 50;
-for (let i = 0; i < BORDER_SEGMENTS; i++) {
-  const angle = (i / BORDER_SEGMENTS) * Math.PI * 2;
-  const baseR = Math.min(MAP_W, MAP_H) / 2 - BORDER_MARGIN;
-  const seed = Math.sin(i * 45.678 + 12.345) * 43758.5453;
-  const wave = (seed - Math.floor(seed)) * 80 - 40; // ±40 variation
-  const r = baseR + wave;
-  MAP_BORDER_POINTS.push({
-    x: MAP_W / 2 + Math.cos(angle) * r,
-    y: MAP_H / 2 + Math.sin(angle) * r
-  });
-}
+// ─── Custom cave-shaped map border ───
+// Shape: Top-right spawn area → corridor left → upper-left branch → large bottom cavern
+// Matches the hand-drawn map design
+const MAP_BORDER_BASE = [
+  // Top-right: spawn area (wide open)
+  { x: 7200, y: 400 },
+  { x: 7400, y: 600 },
+  { x: 7500, y: 1000 },
+  { x: 7300, y: 1400 },
+  { x: 7000, y: 1700 },
+  { x: 6600, y: 1900 },
+  // Corridor going left
+  { x: 6000, y: 1900 },
+  { x: 5500, y: 1800 },
+  { x: 5000, y: 1700 },
+  { x: 4500, y: 1800 },
+  { x: 4000, y: 1900 },
+  // Branch point - path splits to upper-left and lower
+  { x: 3500, y: 2100 },
+  { x: 3200, y: 2400 },
+  // Lower cavern (large, deep area)
+  { x: 3600, y: 2800 },
+  { x: 3800, y: 3300 },
+  { x: 3900, y: 3800 },
+  { x: 3800, y: 4300 },
+  { x: 3500, y: 4700 },
+  { x: 3000, y: 5000 },
+  { x: 2500, y: 5100 },
+  { x: 2000, y: 4900 },
+  { x: 1600, y: 4500 },
+  { x: 1400, y: 4000 },
+  { x: 1300, y: 3500 },
+  // Left branch (connects back up)
+  { x: 1200, y: 3100 },
+  { x: 900, y: 2800 },
+  { x: 700, y: 2400 },
+  { x: 700, y: 2000 },
+  { x: 900, y: 1700 },
+  // Upper-left peninsula
+  { x: 1200, y: 1500 },
+  { x: 1600, y: 1400 },
+  { x: 2000, y: 1500 },
+  { x: 2400, y: 1600 },
+  { x: 2700, y: 1500 },
+  // Back through upper corridor
+  { x: 2900, y: 1300 },
+  { x: 3100, y: 1100 },
+  { x: 3400, y: 900 },
+  { x: 3700, y: 700 },
+  { x: 4000, y: 500 },
+  { x: 4400, y: 400 },
+  // Upper passage back to spawn
+  { x: 4800, y: 350 },
+  { x: 5200, y: 300 },
+  { x: 5600, y: 350 },
+  { x: 6000, y: 400 },
+  { x: 6400, y: 350 },
+  { x: 6800, y: 350 },
+];
+
+// Add noise to base points for organic feel
+const MAP_BORDER_POINTS = MAP_BORDER_BASE.map((p, i) => {
+  const seed1 = Math.sin(i * 45.678 + 12.345) * 43758.5453;
+  const seed2 = Math.sin(i * 78.233 + 56.789) * 23421.6314;
+  const wx = ((seed1 - Math.floor(seed1)) - 0.5) * 80;
+  const wy = ((seed2 - Math.floor(seed2)) - 0.5) * 80;
+  return { x: p.x + wx, y: p.y + wy };
+});
 
 function isInsideBorder(x, y) {
   // Ray casting algorithm
@@ -348,9 +475,12 @@ function pushInsideBorder(px, py, radius) {
       closestDist = dist;
       closestX = cx;
       closestY = cy;
-      // Inward normal (toward center)
-      const mx = MAP_W / 2 - (ax + bx) / 2;
-      const my = MAP_H / 2 - (ay + by) / 2;
+      // Inward normal (perpendicular to edge, pointing inward)
+      // Use centroid of polygon as reference
+      const cx = MAP_BORDER_POINTS.reduce((s, p) => s + p.x, 0) / MAP_BORDER_POINTS.length;
+      const cy = MAP_BORDER_POINTS.reduce((s, p) => s + p.y, 0) / MAP_BORDER_POINTS.length;
+      const mx = cx - (ax + bx) / 2;
+      const my = cy - (ay + by) / 2;
       const nl = Math.sqrt(mx * mx + my * my) || 1;
       edgeNx = mx / nl;
       edgeNy = my / nl;
@@ -366,11 +496,20 @@ function pushInsideBorder(px, py, radius) {
 
 // Ice lakes (circles where players slide)
 const iceLakes = [
-  { x: 700, y: 700, r: 150 },
-  { x: 2300, y: 700, r: 120 },
-  { x: 1500, y: 1500, r: 200 },
-  { x: 600, y: 2300, r: 130 },
-  { x: 2400, y: 2200, r: 160 },
+  // Zone 1 - small lakes near spawn
+  { x: 6300, y: 800, r: 120 },
+  { x: 5800, y: 1400, r: 100 },
+  // Zone 2 - corridor
+  { x: 4500, y: 1100, r: 150 },
+  { x: 3800, y: 900, r: 130 },
+  // Upper branch
+  { x: 2200, y: 1700, r: 140 },
+  // Zone 3 - large frozen lakes in deep cavern
+  { x: 2800, y: 3500, r: 200 },
+  { x: 2000, y: 4200, r: 180 },
+  { x: 3400, y: 4400, r: 160 },
+  // Left branch
+  { x: 1000, y: 2600, r: 150 },
 ];
 
 const ICE_FRICTION = 0.97; // Slide on ice
@@ -400,15 +539,15 @@ function bulletHitsBlock(x, y) {
   return false;
 }
 
-// Safe spawn - ensure inside border and not in blocks
+// Safe spawn - near spawn point, inside border, not in blocks
 function safeSpawnPos() {
   for (let tries = 0; tries < 50; tries++) {
-    const x = Math.random() * (MAP_W - 400) + 200;
-    const y = Math.random() * (MAP_H - 400) + 200;
+    // Spawn within ~400px of spawn point
+    const x = SPAWN_POINT.x + (Math.random() - 0.5) * 800;
+    const y = SPAWN_POINT.y + (Math.random() - 0.5) * 600;
     if (isInsideBorder(x, y) && !collidesWithBlock(x, y, PLAYER_RADIUS)) return { x, y };
   }
-  // Fallback: center of map
-  return { x: MAP_W / 2, y: MAP_H / 2 };
+  return { x: SPAWN_POINT.x, y: SPAWN_POINT.y };
 }
 
 const COLORS = [
@@ -481,7 +620,8 @@ io.on('connection', (socket) => {
     tickRate: TICK_RATE,
     iceBlocks: iceBlocks.map(b => ({ x: b.x, y: b.y, r: b.r, shape: b.shape })),
     iceLakes,
-    borderPoints: MAP_BORDER_POINTS
+    borderPoints: MAP_BORDER_POINTS,
+    spawnPoint: SPAWN_POINT
   });
 
   socket.on('auth', async (token) => {
@@ -791,10 +931,11 @@ function tick() {
       const m = mobs[id];
       if (!m.alive) continue;
       const mobState = m.targetId && players[m.targetId] ? 'chase' : 'idle';
+      const zone = MOB_TYPES[m.type] ? MOB_TYPES[m.type].zone : 1;
       state.mobs[id] = {
         x: m.x, y: m.y, angle: m.angle, hp: m.hp, maxHp: m.maxHp,
         radius: m.radius, color: m.color, name: m.name, type: m.type,
-        alive: m.alive, state: mobState, speed: m.speed
+        alive: m.alive, state: mobState, speed: m.speed, zone
       };
     }
     io.emit('state', state);

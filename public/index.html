@@ -298,6 +298,7 @@ let floatingTexts = []; // For kill rewards
 let iceBlocks = [];
 let iceLakes = [];
 let borderPoints = [];
+let spawnPoint = { x: 0, y: 0 };
 
 // Snowflake particles
 const snowflakes = [];
@@ -448,6 +449,7 @@ function startGame(playerName) {
     iceBlocks = data.iceBlocks || [];
     iceLakes = data.iceLakes || [];
     borderPoints = data.borderPoints || [];
+    spawnPoint = data.spawnPoint || { x: 0, y: 0 };
 
     // Authenticate if logged in
     if (authToken) {
@@ -1061,7 +1063,8 @@ function drawMob(m) {
 
   const t = Date.now() / 1000;
 
-  if (m.type === 'wolf') {
+  if (m.type === 'wolf' || m.type === 'wolf_alpha') {
+    const isAlpha = m.type === 'wolf_alpha';
     // === Ice Crystal Wolf ===
     const s = m.radius / 14; // scale factor (base radius 14)
     const isChasing = m.state === 'chase';
@@ -1074,8 +1077,8 @@ function drawMob(m) {
 
     // Glow aura
     const auraGrad = ctx.createRadialGradient(0, 0, s * 5, 0, 0, s * 35);
-    auraGrad.addColorStop(0, 'rgba(100, 220, 255, 0.25)');
-    auraGrad.addColorStop(1, 'rgba(100, 220, 255, 0)');
+    auraGrad.addColorStop(0, isAlpha ? 'rgba(130, 100, 255, 0.3)' : 'rgba(100, 220, 255, 0.25)');
+    auraGrad.addColorStop(1, isAlpha ? 'rgba(130, 100, 255, 0)' : 'rgba(100, 220, 255, 0)');
     ctx.fillStyle = auraGrad;
     ctx.beginPath();
     ctx.arc(0, 0, s * 35, 0, Math.PI * 2);
@@ -1136,10 +1139,17 @@ function drawMob(m) {
 
     // Main body - ice crystal segments
     const bodyGrad = ctx.createLinearGradient(-s * 15, -s * 8, s * 12, s * 8);
-    bodyGrad.addColorStop(0, '#3ad4f5');
-    bodyGrad.addColorStop(0.3, '#6be8ff');
-    bodyGrad.addColorStop(0.6, '#40d0f0');
-    bodyGrad.addColorStop(1, '#28a8d8');
+    if (isAlpha) {
+      bodyGrad.addColorStop(0, '#5535d0');
+      bodyGrad.addColorStop(0.3, '#7755ee');
+      bodyGrad.addColorStop(0.6, '#5540d5');
+      bodyGrad.addColorStop(1, '#3828b8');
+    } else {
+      bodyGrad.addColorStop(0, '#3ad4f5');
+      bodyGrad.addColorStop(0.3, '#6be8ff');
+      bodyGrad.addColorStop(0.6, '#40d0f0');
+      bodyGrad.addColorStop(1, '#28a8d8');
+    }
     ctx.fillStyle = bodyGrad;
     ctx.strokeStyle = 'rgba(180, 240, 255, 0.7)';
     ctx.lineWidth = 1.2;
@@ -1204,9 +1214,15 @@ function drawMob(m) {
     ctx.save();
     ctx.translate(s * 12, 0);
     const headGrad = ctx.createRadialGradient(-s*2, -s*1, 0, 0, 0, s * 10);
-    headGrad.addColorStop(0, '#80e8ff');
-    headGrad.addColorStop(0.5, '#45c8e8');
-    headGrad.addColorStop(1, '#2898c0');
+    if (isAlpha) {
+      headGrad.addColorStop(0, '#9070ff');
+      headGrad.addColorStop(0.5, '#6040d0');
+      headGrad.addColorStop(1, '#4028a0');
+    } else {
+      headGrad.addColorStop(0, '#80e8ff');
+      headGrad.addColorStop(0.5, '#45c8e8');
+      headGrad.addColorStop(1, '#2898c0');
+    }
     ctx.fillStyle = headGrad;
     ctx.strokeStyle = 'rgba(180, 240, 255, 0.7)';
     ctx.lineWidth = 1.2;
@@ -1342,6 +1358,122 @@ function drawMob(m) {
     ctx.fill();
     ctx.restore();
     ctx.restore();
+  } else if (m.type === 'frost_wyrm') {
+    // Frost Dragon/Wyrm - large serpentine body
+    const s = m.radius / 35;
+    const t2 = t;
+    ctx.save();
+    ctx.rotate(m.angle);
+    // Body segments (serpentine)
+    for (let i = 4; i >= 0; i--) {
+      const segX = -s * i * 14;
+      const segY = Math.sin(t2 * 3 + i * 0.8) * s * 6;
+      const segR = s * (16 - i * 1.5);
+      const grad = ctx.createRadialGradient(segX, segY, 0, segX, segY, segR);
+      grad.addColorStop(0, 'rgba(60, 100, 200, 0.9)');
+      grad.addColorStop(0.7, 'rgba(30, 60, 150, 0.85)');
+      grad.addColorStop(1, 'rgba(20, 40, 120, 0.7)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(segX, segY, segR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // Head
+    ctx.fillStyle = '#2855bb';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, 0);
+    ctx.lineTo(s * 8, -s * 12);
+    ctx.lineTo(-s * 5, -s * 10);
+    ctx.lineTo(-s * 8, 0);
+    ctx.lineTo(-s * 5, s * 10);
+    ctx.lineTo(s * 8, s * 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(100, 160, 255, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Horns
+    ctx.fillStyle = 'rgba(120, 170, 255, 0.8)';
+    ctx.beginPath();
+    ctx.moveTo(s * 2, -s * 10);
+    ctx.lineTo(-s * 4, -s * 20);
+    ctx.lineTo(-s * 2, -s * 9);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(s * 2, s * 10);
+    ctx.lineTo(-s * 4, s * 20);
+    ctx.lineTo(-s * 2, s * 9);
+    ctx.fill();
+    // Eyes
+    ctx.shadowColor = '#ff3333';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#ff2222';
+    ctx.beginPath();
+    ctx.ellipse(s * 8, -s * 5, s * 3, s * 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(s * 8, s * 5, s * 3, s * 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  } else if (m.type === 'ice_elemental') {
+    // Ice Elemental - swirling ice energy
+    const s = m.radius / 24;
+    ctx.save();
+    // Swirling particles
+    for (let i = 0; i < 8; i++) {
+      const angle = t * 2 + (i / 8) * Math.PI * 2;
+      const dist = s * (10 + Math.sin(t * 3 + i) * 4);
+      const px = Math.cos(angle) * dist;
+      const py = Math.sin(angle) * dist;
+      const ps = s * (3 + Math.sin(t * 4 + i * 2) * 1.5);
+      ctx.fillStyle = `rgba(80, 140, 255, ${0.4 + Math.sin(t * 2 + i) * 0.2})`;
+      ctx.beginPath();
+      ctx.arc(px, py, ps, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Core
+    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 14);
+    coreGrad.addColorStop(0, 'rgba(150, 200, 255, 0.9)');
+    coreGrad.addColorStop(0.4, 'rgba(60, 120, 220, 0.8)');
+    coreGrad.addColorStop(0.8, 'rgba(30, 60, 180, 0.6)');
+    coreGrad.addColorStop(1, 'rgba(20, 40, 150, 0.2)');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 14, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner crystal
+    ctx.fillStyle = 'rgba(180, 220, 255, 0.7)';
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = t * 0.5 + (i / 6) * Math.PI * 2;
+      const r = s * (i % 2 === 0 ? 8 : 5);
+      const x = Math.cos(a) * r, y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200, 240, 255, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Eyes (in direction of angle)
+    ctx.save();
+    ctx.rotate(m.angle);
+    ctx.shadowColor = '#aaeeff';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ccffff';
+    ctx.beginPath();
+    ctx.arc(s * 5, -s * 3, s * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s * 5, s * 3, s * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    ctx.restore();
   }
 
   // HP bar
@@ -1352,9 +1484,10 @@ function drawMob(m) {
   ctx.fillStyle = hpRatio > 0.5 ? '#2ecc71' : hpRatio > 0.25 ? '#f39c12' : '#e74c3c';
   ctx.fillRect(-barW / 2, -m.radius - 14, barW * hpRatio, 5);
 
-  // Name
-  ctx.fillStyle = m.type === 'golem' ? '#aaddff' : '#ccddee';
-  ctx.font = '11px sans-serif';
+  // Name (color by zone)
+  const zoneColors = { 1: '#ccddee', 2: '#aabbdd', 3: '#ff8888' };
+  ctx.fillStyle = zoneColors[m.zone] || '#ccddee';
+  ctx.font = (m.zone === 3 ? 'bold ' : '') + '11px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(m.name, 0, m.radius + 16);
 
