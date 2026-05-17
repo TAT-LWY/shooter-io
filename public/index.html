@@ -572,6 +572,21 @@ function reconcileBullets(sBullets) {
   });
 }
 
+// Client-side border check (same ray casting as server)
+function clientIsInsideBorder(x, y) {
+  if (borderPoints.length < 3) return true;
+  let inside = false;
+  const n = borderPoints.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = borderPoints[i].x, yi = borderPoints[i].y;
+    const xj = borderPoints[j].x, yj = borderPoints[j].y;
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 function applyMovement(obj, inputKeys) {
   let dx = 0, dy = 0;
   if (inputKeys.up) dy -= 1;
@@ -580,8 +595,23 @@ function applyMovement(obj, inputKeys) {
   if (inputKeys.right) dx += 1;
   if (dx || dy) {
     const len = Math.sqrt(dx * dx + dy * dy);
-    obj.x += (dx / len) * PLAYER_SPEED;
-    obj.y += (dy / len) * PLAYER_SPEED;
+    const mvx = (dx / len) * PLAYER_SPEED;
+    const mvy = (dy / len) * PLAYER_SPEED;
+    const newX = obj.x + mvx;
+    const newY = obj.y + mvy;
+
+    if (clientIsInsideBorder(newX, newY)) {
+      // New position is inside border, move normally
+      obj.x = newX;
+      obj.y = newY;
+    } else if (clientIsInsideBorder(newX, obj.y)) {
+      // Only X movement is safe
+      obj.x = newX;
+    } else if (clientIsInsideBorder(obj.x, newY)) {
+      // Only Y movement is safe
+      obj.y = newY;
+    }
+    // else: both directions blocked, don't move
   }
   obj.x = Math.max(PLAYER_RADIUS, Math.min(mapW - PLAYER_RADIUS, obj.x));
   obj.y = Math.max(PLAYER_RADIUS, Math.min(mapH - PLAYER_RADIUS, obj.y));
