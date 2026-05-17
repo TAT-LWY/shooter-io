@@ -45,10 +45,10 @@ let stateTick = 0;
 // ─── Mob System ───
 const MOB_TYPES = {
   wolf: {
-    name: '雪狼',
-    hp: 60,
+    name: '冰晶狼',
+    hp: 80,
     speed: 2.5,
-    radius: 14,
+    radius: 20,
     color: '#a0b0c0',
     aggroRange: 300,
     damage: 8,
@@ -703,10 +703,11 @@ function tick() {
     for (const id in mobs) {
       const m = mobs[id];
       if (!m.alive) continue;
+      const mobState = m.targetId && players[m.targetId] ? 'chase' : 'idle';
       state.mobs[id] = {
         x: m.x, y: m.y, angle: m.angle, hp: m.hp, maxHp: m.maxHp,
         radius: m.radius, color: m.color, name: m.name, type: m.type,
-        alive: m.alive
+        alive: m.alive, state: mobState, speed: m.speed
       };
     }
     io.emit('state', state);
