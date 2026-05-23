@@ -549,14 +549,15 @@ function startGame(playerName) {
     });
   });
 
-  socket.on('pong_check', (clientTime) => {
-    ping = Date.now() - clientTime;
+  let pingSentTime = 0;
+  socket.on('pong_check', () => {
+    ping = Date.now() - pingSentTime;
     const color = ping < 80 ? '#0f0' : ping < 150 ? '#ff0' : '#f00';
     pingDisplay.style.color = color;
     pingDisplay.textContent = `PING: ${ping}ms`;
   });
 
-  setInterval(() => { if (socket) socket.emit('ping_check', Date.now()); }, 2000);
+  setInterval(() => { if (socket) { pingSentTime = Date.now(); socket.emit('ping_check'); } }, 2000);
 }
 
 // Start button & name input

@@ -677,9 +677,8 @@ io.on('connection', (socket) => {
     socket.emit('shootConfirm', { clientId: data && data.clientId, serverId: bId });
   });
 
-  socket.on('ping_check', (clientTime) => {
-    socket.emit('pong_check', clientTime);
-    player.ping = Date.now() - clientTime;
+  socket.on('ping_check', () => {
+    socket.emit('pong_check');
   });
 
   socket.on('disconnect', async () => {
