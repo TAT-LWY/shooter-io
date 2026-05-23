@@ -22,17 +22,17 @@ initDB();
 
 const MAP_W = 8000;
 const MAP_H = 6000;
-const TICK_RATE = 60;
-const PLAYER_SPEED = 4;
-const BULLET_SPEED = 12;
-const BULLET_LIFE = 60;
+const TICK_RATE = 30;
+const PLAYER_SPEED = 8;
+const BULLET_SPEED = 24;
+const BULLET_LIFE = 30;
 const PLAYER_RADIUS = 18;
 const BULLET_RADIUS = 5;
 const MAX_HP = 100;
 const BULLET_DAMAGE = 20;
 const RESPAWN_TIME = 3000;
 const SHOOT_COOLDOWN = 150;
-const STATE_SEND_RATE = 20;
+const STATE_SEND_RATE = 10;
 
 const players = {};
 const bullets = [];
@@ -51,7 +51,7 @@ const MOB_TYPES = {
   wolf: {
     name: '冰晶狼',
     hp: 60,
-    speed: 2.2,
+    speed: 4.4,
     radius: 18,
     color: '#a0b0c0',
     aggroRange: 250,
@@ -66,7 +66,7 @@ const MOB_TYPES = {
   wolf_alpha: {
     name: '寒冰头狼',
     hp: 120,
-    speed: 2.8,
+    speed: 5.6,
     radius: 22,
     color: '#7090b0',
     aggroRange: 350,
@@ -80,14 +80,14 @@ const MOB_TYPES = {
   golem: {
     name: '冰霜巨人',
     hp: 200,
-    speed: 1.2,
+    speed: 2.4,
     radius: 28,
     color: '#5599cc',
     aggroRange: 400,
     damage: 15,
     attackCooldown: 2000,
     shootRange: 350,
-    bulletSpeed: 8,
+    bulletSpeed: 16,
     xpReward: 3,
     healReward: 30,
     respawnTime: 25000,
@@ -97,14 +97,14 @@ const MOB_TYPES = {
   frost_wyrm: {
     name: '霜龙',
     hp: 350,
-    speed: 1.8,
+    speed: 3.6,
     radius: 35,
     color: '#3366aa',
     aggroRange: 500,
     damage: 25,
     attackCooldown: 1500,
     shootRange: 450,
-    bulletSpeed: 10,
+    bulletSpeed: 20,
     xpReward: 5,
     healReward: 50,
     respawnTime: 40000,
@@ -113,7 +113,7 @@ const MOB_TYPES = {
   ice_elemental: {
     name: '冰元素',
     hp: 250,
-    speed: 2.5,
+    speed: 5.0,
     radius: 24,
     color: '#2255aa',
     aggroRange: 450,
@@ -915,13 +915,13 @@ function tick() {
     const state = {
       tick: stateTick,
       players: {},
-      bullets: bullets.map(b => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, color: b.color })),
+      bullets: bullets.map(b => ({ id: b.id, x: Math.round(b.x), y: Math.round(b.y), color: b.color })),
       mobs: {}
     };
     for (const id in players) {
       const p = players[id];
       state.players[id] = {
-        x: p.x, y: p.y, angle: p.angle, hp: p.hp,
+        x: Math.round(p.x), y: Math.round(p.y), angle: +p.angle.toFixed(2), hp: p.hp,
         name: p.name, color: p.color, alive: p.alive,
         kills: p.kills, deaths: p.deaths, seq: p.seq
       };
@@ -932,9 +932,9 @@ function tick() {
       const mobState = m.targetId && players[m.targetId] ? 'chase' : 'idle';
       const zone = MOB_TYPES[m.type] ? MOB_TYPES[m.type].zone : 1;
       state.mobs[id] = {
-        x: m.x, y: m.y, angle: m.angle, hp: m.hp, maxHp: m.maxHp,
-        radius: m.radius, color: m.color, name: m.name, type: m.type,
-        alive: m.alive, state: mobState, speed: m.speed, zone
+        x: Math.round(m.x), y: Math.round(m.y), angle: +m.angle.toFixed(2),
+        hp: m.hp, maxHp: m.maxHp, radius: m.radius, color: m.color,
+        name: m.name, type: m.type, state: mobState, zone
       };
     }
     io.emit('state', state);
