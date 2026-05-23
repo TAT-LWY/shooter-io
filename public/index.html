@@ -458,7 +458,7 @@ function startGame(playerName) {
   pingDisplay.classList.remove('hidden');
   playing = true;
 
-  socket = io();
+  socket = io({ transports: ['websocket'] });
 
   socket.on('init', (data) => {
     myId = data.id;
