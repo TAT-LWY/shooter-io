@@ -941,7 +941,17 @@ function tick() {
   }
 }
 
-setInterval(tick, 1000 / TICK_RATE);
+let tickTimeSum = 0, tickCount = 0;
+setInterval(() => {
+  const t0 = Date.now();
+  tick();
+  tickTimeSum += Date.now() - t0;
+  tickCount++;
+  if (tickCount >= 300) {
+    console.log(`Avg tick: ${(tickTimeSum / tickCount).toFixed(1)}ms (${tickCount} ticks, ${Object.keys(players).length} players)`);
+    tickTimeSum = 0; tickCount = 0;
+  }
+}, 1000 / TICK_RATE);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
