@@ -912,32 +912,53 @@ function tick() {
   const stateInterval = Math.round(TICK_RATE / STATE_SEND_RATE);
   if (serverTick % stateInterval === 0) {
     stateTick++;
-    const state = {
-      tick: stateTick,
-      players: {},
-      bullets: bullets.map(b => ({ id: b.id, x: Math.round(b.x), y: Math.round(b.y), color: b.color })),
-      mobs: {}
-    };
+    const VIEW_W = 1000, VIEW_H = 700; // half viewport + margin
+
+    // Pre-compute shared player data
+    const allPlayers = {};
     for (const id in players) {
       const p = players[id];
-      state.players[id] = {
+      allPlayers[id] = {
         x: Math.round(p.x), y: Math.round(p.y), angle: +p.angle.toFixed(2), hp: p.hp,
         name: p.name, color: p.color, alive: p.alive,
         kills: p.kills, deaths: p.deaths, seq: p.seq
       };
     }
-    for (const id in mobs) {
-      const m = mobs[id];
-      if (!m.alive) continue;
-      const mobState = m.targetId && players[m.targetId] ? 'chase' : 'idle';
-      const zone = MOB_TYPES[m.type] ? MOB_TYPES[m.type].zone : 1;
-      state.mobs[id] = {
-        x: Math.round(m.x), y: Math.round(m.y), angle: +m.angle.toFixed(2),
-        hp: m.hp, maxHp: m.maxHp, radius: m.radius, color: m.color,
-        name: m.name, type: m.type, state: mobState, zone
-      };
+
+    // Send per-player viewport-culled state
+    for (const sid in players) {
+      const me = players[sid];
+      if (!me.alive) {
+        io.to(sid).emit('state', { tick: stateTick, players: allPlayers, bullets: [], mobs: {} });
+        continue;
+      }
+
+      // Cull bullets by viewport
+      const nearBullets = [];
+      for (const b of bullets) {
+        if (Math.abs(b.x - me.x) < VIEW_W && Math.abs(b.y - me.y) < VIEW_H) {
+          nearBullets.push({ id: b.id, x: Math.round(b.x), y: Math.round(b.y), color: b.color });
+        }
+      }
+
+      // Cull mobs by viewport
+      const nearMobs = {};
+      for (const mid in mobs) {
+        const m = mobs[mid];
+        if (!m.alive) continue;
+        if (Math.abs(m.x - me.x) < VIEW_W && Math.abs(m.y - me.y) < VIEW_H) {
+          const mobState = m.targetId && players[m.targetId] ? 'chase' : 'idle';
+          const zone = MOB_TYPES[m.type] ? MOB_TYPES[m.type].zone : 1;
+          nearMobs[mid] = {
+            x: Math.round(m.x), y: Math.round(m.y), angle: +m.angle.toFixed(2),
+            hp: m.hp, maxHp: m.maxHp, radius: m.radius, color: m.color,
+            name: m.name, type: m.type, state: mobState, zone
+          };
+        }
+      }
+
+      io.to(sid).emit('state', { tick: stateTick, players: allPlayers, bullets: nearBullets, mobs: nearMobs });
     }
-    io.emit('state', state);
   }
 }
 
