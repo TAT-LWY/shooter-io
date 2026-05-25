@@ -133,7 +133,7 @@ canvas { display: block; cursor: crosshair; }
 .skin-card.selected { border-color: #4fc3f7; box-shadow: 0 0 12px rgba(79,195,247,0.3); }
 .skin-card.locked { opacity: 0.5; cursor: not-allowed; }
 .skin-card.locked:hover { border-color: rgba(100,180,255,0.2); background: rgba(20,40,60,0.8); }
-.skin-card img, .skin-card canvas { width: 64px; height: 64px; object-fit: contain; }
+.skin-card img { width: 64px; height: 64px; object-fit: contain; }
 .skin-card .skin-name { font-size: 11px; color: #cde; margin-top: 4px; font-weight: bold; }
 .skin-card .skin-req { font-size: 10px; color: #f39c12; margin-top: 2px; }
 .skin-card .skin-req.unlocked { color: #2ecc71; }
@@ -688,16 +688,7 @@ function renderSkinGrid() {
     card.className = 'skin-card' + (isSelected ? ' selected' : '') + (!unlocked ? ' locked' : '');
 
     let imgEl;
-    if (s.src && skinImageCache[s.id]) {
-      const c = document.createElement('canvas');
-      c.width = 64; c.height = 64;
-      const cx = c.getContext('2d');
-      const cached = skinImageCache[s.id];
-      if (cached.complete && cached.naturalWidth > 0) {
-        cx.drawImage(cached, 0, 0, 64, 64);
-      }
-      imgEl = c.outerHTML;
-    } else if (s.src) {
+    if (s.src) {
       imgEl = `<img src="${s.src}" alt="${s.name}">`;
     } else {
       imgEl = '<div class="default-circle"></div>';
@@ -1140,10 +1131,10 @@ function drawPlayer(p, isMe) {
 
   if (hasSkin) {
     // Draw custom skin
-    const size = 80;
+    const size = 70;
     // Gun still rotates
     ctx.save(); ctx.rotate(p.angle);
-    ctx.fillStyle = '#888'; ctx.fillRect(26, -3, 20, 6);
+    ctx.fillStyle = '#888'; ctx.fillRect(24, -3, 18, 6);
     ctx.restore();
     // Draw full character image
     if (!p.alive) ctx.globalAlpha = 0.3;
@@ -1162,15 +1153,15 @@ function drawPlayer(p, isMe) {
 
   // hp bar
   if (p.alive) {
-    const bw = hasSkin ? 50 : 36;
-    const barY = hasSkin ? -46 : -34;
+    const bw = hasSkin ? 46 : 36;
+    const barY = hasSkin ? -42 : -34;
     ctx.fillStyle = '#333'; ctx.fillRect(-bw/2, barY, bw, 5);
     ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(-bw/2, barY, bw * (p.hp / 100), 5);
   }
   // name
   ctx.fillStyle = '#fff'; ctx.font = hasSkin ? 'bold 13px sans-serif' : '12px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(p.name, 0, hasSkin ? 50 : 34);
+  ctx.fillText(p.name, 0, hasSkin ? 46 : 34);
   ctx.restore();
 }
 
