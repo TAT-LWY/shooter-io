@@ -133,7 +133,7 @@ canvas { display: block; cursor: crosshair; }
 .skin-card.selected { border-color: #4fc3f7; box-shadow: 0 0 12px rgba(79,195,247,0.3); }
 .skin-card.locked { opacity: 0.5; cursor: not-allowed; }
 .skin-card.locked:hover { border-color: rgba(100,180,255,0.2); background: rgba(20,40,60,0.8); }
-.skin-card img { width: 64px; height: 64px; object-fit: contain; image-rendering: auto; }
+.skin-card img, .skin-card canvas { width: 64px; height: 64px; object-fit: contain; }
 .skin-card .skin-name { font-size: 11px; color: #cde; margin-top: 4px; font-weight: bold; }
 .skin-card .skin-req { font-size: 10px; color: #f39c12; margin-top: 2px; }
 .skin-card .skin-req.unlocked { color: #2ecc71; }
@@ -157,11 +157,22 @@ canvas { display: block; cursor: crosshair; }
 #minimap { display: block; border-radius: 6px; }
 
 #pingDisplay {
-  position: fixed; top: 12px; left: 12px;
+  position: fixed; bottom: 12px; right: 12px;
   background: rgba(0,0,0,0.6); color: #0f0; padding: 6px 10px;
   border-radius: 6px; font-size: 12px; font-family: monospace; z-index: 5;
 }
 #pingDisplay.hidden { display: none; }
+
+#exitBtn {
+  position: fixed; top: 12px; left: 12px;
+  background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.6);
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+  width: 32px; height: 32px; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5; transition: all 0.2s;
+}
+#exitBtn:hover { background: rgba(200,50,50,0.6); color: #fff; border-color: rgba(255,100,100,0.5); }
+#exitBtn.hidden { display: none; }
 
 #death {
   position: fixed; inset: 0;
@@ -264,6 +275,7 @@ canvas { display: block; cursor: crosshair; }
 </div>
 
 <div id="pingDisplay" class="hidden">PING: --</div>
+<div id="exitBtn" class="hidden" title="Exit to menu">✕</div>
 
 <div id="death" class="hidden">
   <div>
@@ -327,6 +339,7 @@ const deathScreen = document.getElementById('death');
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas.getContext('2d');
 const pingDisplay = document.getElementById('pingDisplay');
+const exitBtn = document.getElementById('exitBtn');
 
 // Auth elements
 const authForms = document.getElementById('authForms');
@@ -514,6 +527,7 @@ function startGame(playerName) {
   menu.classList.add('hidden');
   hud.classList.remove('hidden');
   pingDisplay.classList.remove('hidden');
+  exitBtn.classList.remove('hidden');
   playing = true;
 
   socket = io({ transports: ['websocket'] });
@@ -627,6 +641,24 @@ document.getElementById('nameInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('startBtn').click();
 });
 
+// Exit button - return to menu
+exitBtn.onclick = () => {
+  if (socket) { socket.disconnect(); socket = null; }
+  playing = false;
+  myId = null;
+  localPlayer = null;
+  serverPlayers = {};
+  serverMobs = {};
+  serverBullets = [];
+  pendingInputs = [];
+  stateBuffer = [];
+  menu.classList.remove('hidden');
+  hud.classList.add('hidden');
+  pingDisplay.classList.add('hidden');
+  exitBtn.classList.add('hidden');
+  deathScreen.classList.add('hidden');
+};
+
 // Icon buttons
 document.getElementById('iconSettings').onclick = () => {
   document.getElementById('settingsModal').classList.add('active');
@@ -655,18 +687,27 @@ function renderSkinGrid() {
     const card = document.createElement('div');
     card.className = 'skin-card' + (isSelected ? ' selected' : '') + (!unlocked ? ' locked' : '');
 
-    let imgHtml;
-    if (s.src) {
-      imgHtml = `<img src="${s.src}" alt="${s.name}">`;
+    let imgEl;
+    if (s.src && skinImageCache[s.id]) {
+      const c = document.createElement('canvas');
+      c.width = 64; c.height = 64;
+      const cx = c.getContext('2d');
+      const cached = skinImageCache[s.id];
+      if (cached.complete && cached.naturalWidth > 0) {
+        cx.drawImage(cached, 0, 0, 64, 64);
+      }
+      imgEl = c.outerHTML;
+    } else if (s.src) {
+      imgEl = `<img src="${s.src}" alt="${s.name}">`;
     } else {
-      imgHtml = '<div class="default-circle"></div>';
+      imgEl = '<div class="default-circle"></div>';
     }
 
     const reqText = s.killsRequired === 0 ? 'Free' : `${s.killsRequired} Kills`;
     const reqClass = unlocked ? 'unlocked' : '';
     const lockIcon = !unlocked ? '<div class="skin-lock">&#128274;</div>' : '';
 
-    card.innerHTML = `${lockIcon}${imgHtml}<div class="skin-name">${s.name}</div><div class="skin-req ${reqClass}">${unlocked ? '✓ ' : ''}${reqText}</div>`;
+    card.innerHTML = `${lockIcon}${imgEl}<div class="skin-name">${s.name}</div><div class="skin-req ${reqClass}">${unlocked ? '✓ ' : ''}${reqText}</div>`;
 
     if (unlocked) {
       card.onclick = () => {
@@ -1099,10 +1140,10 @@ function drawPlayer(p, isMe) {
 
   if (hasSkin) {
     // Draw custom skin
-    const size = 100;
+    const size = 80;
     // Gun still rotates
     ctx.save(); ctx.rotate(p.angle);
-    ctx.fillStyle = '#888'; ctx.fillRect(30, -3, 22, 6);
+    ctx.fillStyle = '#888'; ctx.fillRect(26, -3, 20, 6);
     ctx.restore();
     // Draw full character image
     if (!p.alive) ctx.globalAlpha = 0.3;
@@ -1121,15 +1162,15 @@ function drawPlayer(p, isMe) {
 
   // hp bar
   if (p.alive) {
-    const bw = hasSkin ? 56 : 36;
-    const barY = hasSkin ? -56 : -34;
+    const bw = hasSkin ? 50 : 36;
+    const barY = hasSkin ? -46 : -34;
     ctx.fillStyle = '#333'; ctx.fillRect(-bw/2, barY, bw, 5);
     ctx.fillStyle = p.hp > 50 ? '#2ecc71' : p.hp > 25 ? '#f39c12' : '#e74c3c';
     ctx.fillRect(-bw/2, barY, bw * (p.hp / 100), 5);
   }
   // name
   ctx.fillStyle = '#fff'; ctx.font = hasSkin ? 'bold 13px sans-serif' : '12px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(p.name, 0, hasSkin ? 58 : 34);
+  ctx.fillText(p.name, 0, hasSkin ? 50 : 34);
   ctx.restore();
 }
 
