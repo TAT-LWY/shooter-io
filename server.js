@@ -602,7 +602,8 @@ io.on('connection', (socket) => {
     sessionDeaths: 0,
     killStreak: 0,
     bestStreakThisSession: 0,
-    joinTime: Date.now()
+    joinTime: Date.now(),
+    skinId: 'default'
   };
   players[socket.id] = player;
 
@@ -640,12 +641,26 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('setName', (name) => {
-    if (player.username) {
-      player.name = player.username;
+  socket.on('setName', (data) => {
+    if (typeof data === 'object' && data !== null) {
+      if (player.username) {
+        player.name = player.username;
+      } else {
+        player.name = String(data.name || '').slice(0, 12) || 'Player';
+      }
+      if (data.skinId) player.skinId = String(data.skinId).slice(0, 20);
     } else {
-      player.name = String(name).slice(0, 12) || 'Player';
+      // Backwards compatibility
+      if (player.username) {
+        player.name = player.username;
+      } else {
+        player.name = String(data).slice(0, 12) || 'Player';
+      }
     }
+  });
+
+  socket.on('setSkin', (skinId) => {
+    player.skinId = String(skinId).slice(0, 20);
   });
 
   socket.on('input', (data) => {
@@ -921,7 +936,8 @@ function tick() {
       allPlayers[id] = {
         x: Math.round(p.x), y: Math.round(p.y), angle: +p.angle.toFixed(2), hp: p.hp,
         name: p.name, color: p.color, alive: p.alive,
-        kills: p.kills, deaths: p.deaths, seq: p.seq
+        kills: p.kills, deaths: p.deaths, seq: p.seq,
+        skinId: p.skinId
       };
     }
 
